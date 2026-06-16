@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/strettel/Code/knitted-models/docs/**)"
+    ]
+  }
+}

@@ -1,0 +1,67 @@
+import { Vector3 } from 'three';
+import type { StrandDesign, MeshAnalysis, Strand } from '../types.ts';
+import { edgeMidpoint, faceCenter, faceNormal } from '../../mesh/geometry.ts';
+import { sampleHermite } from '../splines.ts';
+
+export interface WeaveOptions {
+  amplitude?: number;
+  samplesPerSegment?: number;
+}
+
+const DEFAULT_AMPLITUDE = 0.05;
+const DEFAULT_SAMPLES_PER_SEGMENT = 8;
+
+export const weaveDesign: StrandDesign<WeaveOptions> = {
+  name: 'weave',
+  id: 'weave',
+  label: 'Weave',
+  families: [0, 1],
+  params: [
+    { key: 'amplitude', label: 'Amplitude', min: 0.01, max: 0.3, step: 0.01, default: DEFAULT_AMPLITUDE },
+    { key: 'samplesPerSegment', label: 'Smoothness', min: 1, max: 24, step: 1, default: DEFAULT_SAMPLES_PER_SEGMENT },
+  ],
+
+  generateStrandCurve(
+    strand: Strand,
+    analysis: MeshAnalysis,
+    options: WeaveOptions,
+  ): Vector3[] {
+    const amplitude = options.amplitude ?? DEFAULT_AMPLITUDE;
+    const samplesPerSegment = options.samplesPerSegment ?? DEFAULT_SAMPLES_PER_SEGMENT;
+    const { mesh, positions, faceColors } = analysis;
+
+    const points: Vector3[] = [];
+
+    for (let i = 0; i < strand.segments.length; i++) {
+      const seg = strand.segments[i];
+      const isFirst = i === 0;
+
+      const p0 = edgeMidpoint(seg.entryEdge, positions);
+      const p1 = edgeMidpoint(seg.exitEdge, positions);
+
+      const center = faceCenter(mesh, seg.face, positions);
+      const normal = faceNormal(mesh, seg.face, positions);
+
+      const dist = p0.distanceTo(p1);
+      const tangentScale = 0.5 * dist;
+      const t0 = new Vector3().subVectors(center, p0).normalize().multiplyScalar(tangentScale);
+      const t1 = new Vector3().subVectors(p1, center).normalize().multiplyScalar(tangentScale);
+
+      const basePoints = sampleHermite(p0, p1, t0, t1, samplesPerSegment, isFirst);
+
+      const sign = (faceColors[seg.face.index] === strand.family) ? 1 : -1;
+
+      for (let j = 0; j < basePoints.length; j++) {
+        const tParam = isFirst
+          ? j / samplesPerSegment
+          : (j + 1) / samplesPerSegment;
+        const displacement = sign * amplitude * Math.sin(Math.PI * tParam);
+        basePoints[j].addScaledVector(normal, displacement);
+      }
+
+      points.push(...basePoints);
+    }
+
+    return points;
+  },
+};

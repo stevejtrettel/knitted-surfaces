@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Knitted Surfaces — Demos</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #0e0e10; color: #e0e0e0;
+      font-family: system-ui, sans-serif; min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; padding: 64px 24px; box-sizing: border-box; }
+    h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 6px; }
+    .sub { color: #888; margin: 0 0 40px; max-width: 560px; text-align: center; line-height: 1.5; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px; width: 100%; max-width: 780px; }
+    a.card { display: block; padding: 18px 20px; background: #1a1a1d; border: 1px solid #2c2c30;
+      border-radius: 12px; text-decoration: none; color: inherit; transition: background 0.15s, border-color 0.15s, transform 0.1s; }
+    a.card:hover { background: #222226; border-color: #3a3a40; transform: translateY(-2px); }
+    .card h2 { font-size: 1rem; font-weight: 600; margin: 0 0 6px; }
+    .card.flagship h2::after { content: '★'; color: #6aa0ff; margin-left: 7px; font-size: 0.85em; }
+    .card p { margin: 0; font-size: 0.85rem; color: #999; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <h1>Knitted Surfaces</h1>
+  <p class="sub">Woven, knitted, and chain-mail strand patterns traced over quad meshes, rendered with three.js and GPU path tracing.</p>
+  <div class="cards">
+    <a class="card" href="/demos/simple/">
+      <h2>Simple</h2>
+      <p>The raw weave on a flat grid — curves only, white background, no lighting. The clearest way to see what each knit does.</p>
+    </a>
+    <a class="card" href="/demos/obj/">
+      <h2>OBJ Loader</h2>
+      <p>Drop in your own quad mesh and knit it. Studio lighting, path tracing, material controls, and OBJ export.</p>
+    </a>
+    <a class="card flagship" href="/demos/surfaces/">
+      <h2>Surfaces</h2>
+      <p>A gallery of sample surfaces — surfaces of revolution plus helicoid, catenoid, Enneper, and monkey saddle. The full panel.</p>
+    </a>
+  </div>
+</body>
+</html>
