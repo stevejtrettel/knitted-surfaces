@@ -5,8 +5,8 @@
  * usable in non-browser contexts (Node, workers, etc.).
  */
 
-import type { ParsedMesh } from './mesh/types.ts';
-import { parseOBJ } from './mesh/parseOBJ.ts';
+import type { ParsedMesh } from './geometry/types.ts';
+import { parseOBJ } from './geometry/parseOBJ.ts';
 
 /**
  * Open a file picker and load an OBJ file.

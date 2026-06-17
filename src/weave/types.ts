@@ -1,61 +1,92 @@
 import type { Vector3 } from 'three';
-import type { HalfEdgeMesh } from '../mesh/HalfEdgeMesh.ts';
-import type { Face, HalfEdge } from '../mesh/types.ts';
+import type { HalfEdgeMesh } from '../geometry/HalfEdgeMesh.ts';
+import type { Face, HalfEdge, CellType } from '../geometry/types.ts';
+import type { ParamSpec } from '../params.ts';
+import type { TileFactory } from './tile/types.ts';
 
+export type { ParamSpec };
+
+/** Strand family index. Quad meshes use 0|1; triangle meshes use 0|1|2. */
+export type FamilyId = 0 | 1 | 2;
+
+/**
+ * A point where a strand crosses a cell boundary: a position `t` along a
+ * half-edge, measured from `halfEdge.origin`. Its topological twin — the same
+ * point seen from the neighbouring cell — is `(halfEdge.twin, 1 - t)`; the
+ * stitcher matches ports by that rule, never by world coordinates.
+ */
+export interface Port {
+  halfEdge: HalfEdge;
+  t: number;
+}
+
+/**
+ * One cell-crossing of a strand: it enters at `entry`, exits at `exit`, and
+ * arcs over `topEdge` (the far/skipped edge — a quad's perpendicular side, a
+ * triangle's third edge). `entryEdge`/`exitEdge` mirror the ports' half-edges
+ * (kept so renderers written against the old shape are untouched); `topEdge` is
+ * derived by the stitcher so patterns don't re-derive it.
+ */
 export interface StrandSegment {
   face: Face;
+  entry: Port;
+  exit: Port;
   entryEdge: HalfEdge;
   exitEdge: HalfEdge;
+  topEdge: HalfEdge;
 }
 
 export interface Strand {
   segments: StrandSegment[];
-  family: 0 | 1;
+  family: FamilyId;
   closed: boolean;
 }
 
-export interface MeshAnalysis {
+/** Output of the routing layer — a mesh resolved into threadable strands. */
+export interface Analysis {
   mesh: HalfEdgeMesh;
   positions: Vector3[];
+  cellType: CellType;
   edgeFamilies: number[];
   faceColors: number[];
   strands: Strand[];
+  availableFamilies: FamilyId[];
+}
+
+/** A point on a strand curve, optionally with its own tube radius. */
+export interface StrandSample {
+  position: Vector3;
+  radius?: number;
 }
 
 /**
- * UI metadata for a single tunable design parameter. Embedding the range
- * alongside the design (rather than in a central switch) keeps it the
- * single source of truth for both the slider and the runtime default.
+ * A stitch pattern for one cell type. Quad and triangle patterns are separate
+ * registries (each carries a single `cellType`). `generateStrandCurve` may
+ * return bare points (constant radius) or `StrandSample`s (per-point radius).
  */
-export interface ParamSpec {
-  /** Key in the design's options object. */
-  key: string;
-  /** Human-readable slider label. */
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  default: number;
-}
-
-export interface StrandDesign<Opts = Record<string, unknown>> {
-  readonly name: string;
-  readonly families?: (0 | 1)[];
-  /** Stable id for pickers/registries. Defaults to `name` when omitted. */
-  readonly id?: string;
-  /** Display label for the knit-type picker. */
-  readonly label?: string;
-  /** Tunable parameters with their slider ranges and defaults. */
+export interface Pattern<Opts = Record<string, unknown>> {
+  readonly id: string;
+  readonly label: string;
+  readonly cellType: CellType;
+  /**
+   * Connectivity: declares this pattern's ports + arcs per cell. The stitcher
+   * walks them across shared edges into global strands. (Replaces the old
+   * `families`/`triRouting`/`joinArcs` trio — a thread weave is just the
+   * one-port-per-edge tile.)
+   */
+  readonly tile: TileFactory;
   readonly params?: ParamSpec[];
   generateStrandCurve(
     strand: Strand,
-    analysis: MeshAnalysis,
+    analysis: Analysis,
     options: Opts,
-  ): Vector3[];
+  ): Vector3[] | StrandSample[];
 }
 
 export interface WeaveResult {
   strands: Vector3[][];
-  strandFamilies: (0 | 1)[];
+  /** Per-strand per-point radius, or null where the pattern left it constant. */
+  strandRadii: (number[] | null)[];
+  strandFamilies: FamilyId[];
   strandClosed: boolean[];
 }

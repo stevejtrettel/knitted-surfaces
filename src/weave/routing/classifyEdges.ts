@@ -1,14 +1,11 @@
 /**
- * Quad-mesh assumption inventory (for future generalization):
- *
- *   mesh/geometry.ts    faceNormal(), faceArea()  — diagonal cross product assumes verts[0..3]
- *   weave/classifyEdges.ts  (this file)           — explicit quad check; loops of 4; i%2 opposite-edge logic
- *   weave/traceStrands.ts   traceDirection()      — twin.next.next finds opposite edge (2 steps in a quad)
+ * Quad edge classification: label each edge into one of two families
+ * (the two grid directions), opposite edges sharing a family.
  */
 
-import type { HalfEdgeMesh } from '../mesh/HalfEdgeMesh.ts';
-import type { Face } from '../mesh/types.ts';
-import { faceEdgeArray } from '../mesh/geometry.ts';
+import type { HalfEdgeMesh } from '../../geometry/HalfEdgeMesh.ts';
+import type { Face } from '../../geometry/types.ts';
+import { faceEdgeArray } from '../../geometry/geometry.ts';
 
 export function classifyEdges(mesh: HalfEdgeMesh): number[] {
   const family = new Int8Array(mesh.halfEdges.length).fill(-1);
@@ -60,7 +57,7 @@ export function classifyEdges(mesh: HalfEdgeMesh): number[] {
 
       if (family[edges[i].index] !== -1 && family[edges[i].index] !== expected) {
         throw new Error(
-          `Inconsistent edge classification at face ${face.index}, edge ${edges[i].index}`
+          `Inconsistent edge classification at face ${face.index}, edge ${edges[i].index}`,
         );
       }
 

@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import type { WeaveResult } from '../weave/types.ts';
 
 export interface LineOptions {
-  /** Material(s) — single or per-family [family0, family1]. */
-  materials: THREE.Material | [THREE.Material, THREE.Material];
+  /** Material(s) — single, or per-family [family0, family1, …]. */
+  materials: THREE.Material | THREE.Material[];
 }
 
 /**
@@ -22,7 +22,7 @@ export function makeStrandLines(result: WeaveResult, opts: LineOptions): THREE.G
     if (strand.length < 2) continue;
 
     const material = Array.isArray(opts.materials)
-      ? opts.materials[result.strandFamilies[i]]
+      ? (opts.materials[result.strandFamilies[i]] ?? opts.materials[0])
       : opts.materials;
 
     const points = result.strandClosed[i]

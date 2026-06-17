@@ -1,7 +1,8 @@
 import { Vector3 } from 'three';
-import type { StrandDesign, MeshAnalysis, Strand } from '../types.ts';
-import { edgeMidpoint, faceCenter, faceNormal } from '../../mesh/geometry.ts';
+import type { Pattern, Analysis, Strand } from '../types.ts';
+import { edgeMidpoint, faceCenter, faceNormal } from '../../geometry/geometry.ts';
 import { sampleHermite } from '../splines.ts';
+import { threadTile } from '../tile/tiles.ts';
 
 export interface WeaveOptions {
   amplitude?: number;
@@ -11,21 +12,17 @@ export interface WeaveOptions {
 const DEFAULT_AMPLITUDE = 0.05;
 const DEFAULT_SAMPLES_PER_SEGMENT = 8;
 
-export const weaveDesign: StrandDesign<WeaveOptions> = {
-  name: 'weave',
+export const weavePattern: Pattern<WeaveOptions> = {
   id: 'weave',
   label: 'Weave',
-  families: [0, 1],
+  cellType: 'quad',
+  tile: threadTile([0, 1]),
   params: [
     { key: 'amplitude', label: 'Amplitude', min: 0.01, max: 0.3, step: 0.01, default: DEFAULT_AMPLITUDE },
     { key: 'samplesPerSegment', label: 'Smoothness', min: 1, max: 24, step: 1, default: DEFAULT_SAMPLES_PER_SEGMENT },
   ],
 
-  generateStrandCurve(
-    strand: Strand,
-    analysis: MeshAnalysis,
-    options: WeaveOptions,
-  ): Vector3[] {
+  generateStrandCurve(strand: Strand, analysis: Analysis, options: WeaveOptions): Vector3[] {
     const amplitude = options.amplitude ?? DEFAULT_AMPLITUDE;
     const samplesPerSegment = options.samplesPerSegment ?? DEFAULT_SAMPLES_PER_SEGMENT;
     const { mesh, positions, faceColors } = analysis;
@@ -52,9 +49,7 @@ export const weaveDesign: StrandDesign<WeaveOptions> = {
       const sign = (faceColors[seg.face.index] === strand.family) ? 1 : -1;
 
       for (let j = 0; j < basePoints.length; j++) {
-        const tParam = isFirst
-          ? j / samplesPerSegment
-          : (j + 1) / samplesPerSegment;
+        const tParam = isFirst ? j / samplesPerSegment : (j + 1) / samplesPerSegment;
         const displacement = sign * amplitude * Math.sin(Math.PI * tParam);
         basePoints[j].addScaledVector(normal, displacement);
       }

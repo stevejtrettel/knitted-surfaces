@@ -1,9 +1,9 @@
 import { Vector3 } from 'three';
-import type { HalfEdgeMesh } from '../../mesh/HalfEdgeMesh.ts';
-import type { HalfEdge } from '../../mesh/types.ts';
-import type { StrandDesign, MeshAnalysis, Strand, StrandSegment } from '../types.ts';
-import { edgeMidpoint, faceCenter, faceNormal } from '../../mesh/geometry.ts';
+import type { HalfEdgeMesh } from '../../geometry/HalfEdgeMesh.ts';
+import type { Pattern, Analysis, Strand, StrandSegment } from '../types.ts';
+import { edgeMidpoint, faceCenter, faceNormal } from '../../geometry/geometry.ts';
 import { sampleCatmullRom } from '../splines.ts';
+import { threadTile } from '../tile/tiles.ts';
 
 export interface OmegaOptions {
   amplitude?: number;
@@ -30,7 +30,7 @@ function computeOmegaWaypoints(
   const center = faceCenter(mesh, seg.face, positions);
   const normal = faceNormal(mesh, seg.face, positions);
 
-  const sideEdge: HalfEdge = seg.entryEdge.next;
+  const sideEdge = seg.topEdge;
   const sideMid = edgeMidpoint(sideEdge, positions);
 
   const horizontal = new Vector3().subVectors(exit, entry);
@@ -79,22 +79,18 @@ function computeOmegaWaypoints(
   });
 }
 
-export const omegaDesign: StrandDesign<OmegaOptions> = {
-  name: 'omega',
+export const omegaPattern: Pattern<OmegaOptions> = {
   id: 'omega',
-  label: 'Omega (Chain Mail)',
-  families: [0],
+  label: 'Omega',
+  cellType: 'quad',
+  tile: threadTile([0]),
   params: [
     { key: 'amplitude', label: 'Amplitude', min: 0.01, max: 0.3, step: 0.01, default: DEFAULT_AMPLITUDE },
     { key: 'samplesPerSegment', label: 'Smoothness', min: 1, max: 16, step: 1, default: DEFAULT_SAMPLES_PER_SEGMENT },
     { key: 'archHeight', label: 'Arch Height', min: 0.5, max: 3, step: 0.05, default: DEFAULT_ARCH_HEIGHT },
   ],
 
-  generateStrandCurve(
-    strand: Strand,
-    analysis: MeshAnalysis,
-    options: OmegaOptions,
-  ): Vector3[] {
+  generateStrandCurve(strand: Strand, analysis: Analysis, options: OmegaOptions): Vector3[] {
     const amplitude = options.amplitude ?? DEFAULT_AMPLITUDE;
     const samplesPerSegment = options.samplesPerSegment ?? DEFAULT_SAMPLES_PER_SEGMENT;
     const archHeight = options.archHeight ?? DEFAULT_ARCH_HEIGHT;

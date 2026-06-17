@@ -31,22 +31,34 @@ export function faceCenter(mesh: HalfEdgeMesh, face: Face, positions: Vector3[])
   return center.divideScalar(count);
 }
 
-/** Normal of a quad face via cross product of diagonals. */
+/**
+ * Newell's method: the area-weighted normal of an arbitrary planar-ish
+ * polygon. Works for triangles, quads, and n-gons alike, and is robust to
+ * slightly non-planar faces. Its magnitude is twice the projected area.
+ */
+function newellNormal(verts: Vector3[]): Vector3 {
+  const n = new Vector3();
+  const count = verts.length;
+  for (let i = 0; i < count; i++) {
+    const cur = verts[i];
+    const nxt = verts[(i + 1) % count];
+    n.x += (cur.y - nxt.y) * (cur.z + nxt.z);
+    n.y += (cur.z - nxt.z) * (cur.x + nxt.x);
+    n.z += (cur.x - nxt.x) * (cur.y + nxt.y);
+  }
+  return n;
+}
+
+/** Unit normal of a face (any arity) via Newell's method. */
 export function faceNormal(mesh: HalfEdgeMesh, face: Face, positions: Vector3[]): Vector3 {
   const verts: Vector3[] = [];
   for (const v of mesh.faceVertices(face)) verts.push(positions[v.index]);
-
-  const d1 = new Vector3().subVectors(verts[2], verts[0]);
-  const d2 = new Vector3().subVectors(verts[3], verts[1]);
-  return new Vector3().crossVectors(d1, d2).normalize();
+  return newellNormal(verts).normalize();
 }
 
-/** Area of a quad face via cross product of diagonals. */
+/** Area of a face (any arity); half the magnitude of the Newell vector. */
 export function faceArea(mesh: HalfEdgeMesh, face: Face, positions: Vector3[]): number {
   const verts: Vector3[] = [];
   for (const v of mesh.faceVertices(face)) verts.push(positions[v.index]);
-
-  const d1 = new Vector3().subVectors(verts[2], verts[0]);
-  const d2 = new Vector3().subVectors(verts[3], verts[1]);
-  return new Vector3().crossVectors(d1, d2).length() * 0.5;
+  return newellNormal(verts).length() * 0.5;
 }
