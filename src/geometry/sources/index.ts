@@ -13,7 +13,8 @@ import type { CellType, Geometry, ParsedMesh } from '../types.ts';
 import type { GeometrySource } from './types.ts';
 import { makeParametricMesh, type Parametric, type Domain } from '../parametric.ts';
 import { makeTriangleGrid } from '../triangleGrid.ts';
-import { makeTriangleGroupMesh } from '../tilings/triangleGroup.ts';
+import { makeTriangleGroupMesh, type DiskModel } from '../tilings/triangleGroup.ts';
+import { metricTaper } from '../radiusFields.ts';
 import { profiles, revolutionMap, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle } from '../maps.ts';
 import { Tab } from '../../scene/panel.ts';
 import { buildParamPicker } from '../../scene/paramPicker.ts';
@@ -97,11 +98,20 @@ const regularTriGrid: GeometrySource = {
  * For a clean triaxial weave every valence (2p,2q,2r) must be divisible by 3,
  * i.e. p, q, r all divisible by 3 — otherwise the directional colouring tears.
  */
+const TILING_SCALE = 2.4; // disk radius (projection scale) — the metric boundary
+const TILING_MODEL: DiskModel = 'poincare';
+
 function tilingSource(p: number, q: number, r: number): GeometrySource {
   return {
     id: `tiling-${p}-${q}-${r}`, label: `Hyperbolic (${p},${q},${r})`, cellType: 'tri',
     params: [{ key: 'depth', label: 'Depth', min: 4, max: 24, step: 1, default: 16 }],
-    build: (o) => ({ cellType: 'tri', mesh: makeTriangleGroupMesh({ p, q, r, depth: o.depth }) }),
+    build: (o) => ({
+      cellType: 'tri',
+      mesh: makeTriangleGroupMesh({ p, q, r, depth: o.depth, scale: TILING_SCALE, model: TILING_MODEL }),
+      // Tubes follow the hyperbolic metric: thick at the centre, thinning toward
+      // the disk boundary at radius TILING_SCALE (the conformal factor, fixed).
+      radiusField: metricTaper(TILING_SCALE, TILING_MODEL),
+    }),
   };
 }
 

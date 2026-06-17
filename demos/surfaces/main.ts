@@ -15,6 +15,9 @@ import { addPathTraceControl } from '@/scene/pathTraceToggle.ts';
 import { addScreenshotControl } from '@/scene/screenshot.ts';
 import { analyze } from '@/weave/routing/analyze.ts';
 import { generateStrands } from '@/weave/generateStrands.ts';
+import { applyRadiusTaper } from '@/weave/radius.ts';
+import { smoothStrands } from '@/weave/smooth.ts';
+import type { WeaveResult } from '@/weave/types.ts';
 import { buildPatternControls, type PatternControls } from '@/weave/patterns/index.ts';
 import { buildSourceControls, type SourceControls } from '@/geometry/sources/index.ts';
 import type { CellType } from '@/geometry/types.ts';
@@ -44,12 +47,28 @@ const lineMaterial = new THREE.LineBasicMaterial({ color: 0x3e3e44 });
 let cellType: CellType = 'quad';
 let tubeRadius = 0.012;
 let showTubes = true;
+let smoothing = 0; // global Chaikin smoothing rounds; 0 = off
 let group: THREE.Group | null = null;
+
+/**
+ * Strands for the active geometry/pattern. If the geometry carries a metric
+ * (e.g. the hyperbolic disk), tubes follow it automatically — constant intrinsic
+ * width, thick centre → thin boundary. It's the metric, not a toggle: without it
+ * constant-width tubes clog the boundary where the cells shrink.
+ */
+function buildResult(): WeaveResult {
+  const geometry = geoControls.geometry;
+  const analysis = analyze(geometry, patternControls.pattern);
+  let result = generateStrands(analysis, patternControls.pattern, patternControls.options);
+  result = smoothStrands(result, smoothing);
+  return geometry.radiusField
+    ? applyRadiusTaper(result, geometry.radiusField, tubeRadius)
+    : result;
+}
 
 function rebuild(): void {
   if (group) removeStrandGroup(group);
-  const analysis = analyze(geoControls.geometry, patternControls.pattern);
-  const result = generateStrands(analysis, patternControls.pattern, patternControls.options);
+  const result = buildResult();
   group = showTubes
     ? makeStrandTubes(result, { materials: tubeMaterial, tubeRadius })
     : makeStrandLines(result, { materials: lineMaterial });
@@ -87,8 +106,10 @@ function refreshPattern(): void {
   patternBox.innerHTML = '';
   patternControls = buildPatternControls(patternTab, cellType, { onChange: rebuild });
 }
-look.slider('Strand Width', { min: 0.003, max: 0.04, step: 0.001, value: tubeRadius },
+look.slider('Strand Width', { min: 0.003, max: 0.15, step: 0.001, value: tubeRadius },
   (v) => { tubeRadius = v; rebuild(); });
+look.slider('Smoothing', { min: 0, max: 6, step: 1, value: smoothing },
+  (v) => { smoothing = v; rebuild(); });
 look.color('Color', '#3e3e44', (hex) => {
   tubeMaterial.color.set(hex);
   lineMaterial.color.set(hex);
@@ -110,8 +131,7 @@ const styleToggle = render.toggle('Tubes', showTubes, (v) => {
 });
 render.color('Background', '#eef4ff', (hex) => { app.scene.background = new THREE.Color(hex); });
 render.button('Export OBJ', () => {
-  const analysis = analyze(geoControls.geometry, patternControls.pattern);
-  const result = generateStrands(analysis, patternControls.pattern, patternControls.options);
+  const result = buildResult();
   if (showTubes) {
     downloadOBJ(exportTubesOBJ(makeStrandTubes(result, { materials: tubeMaterial, tubeRadius })), 'weave-tubes.obj');
   } else {
