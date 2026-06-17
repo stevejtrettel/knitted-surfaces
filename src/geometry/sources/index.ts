@@ -10,16 +10,18 @@
 
 import { Vector3 } from 'three';
 import type { CellType, Geometry, ParsedMesh } from '../types.ts';
-import type { GeometrySource } from './types.ts';
+import type { GeometrySource, SourceGroup } from './types.ts';
 import { makeParametricMesh, type Parametric, type Domain } from '../parametric.ts';
 import { makeTriangleGrid } from '../triangleGrid.ts';
 import { makeTriangleGroupMesh, type DiskModel } from '../tilings/triangleGroup.ts';
-import { metricTaper } from '../radiusFields.ts';
+import { cliffordTorus, hopfNGon } from '../s3.ts';
+import { metricTaper, stereographicTaper } from '../radiusFields.ts';
 import { profiles, revolutionMap, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle } from '../maps.ts';
 import { Tab } from '../../scene/panel.ts';
 import { buildParamPicker } from '../../scene/paramPicker.ts';
+import type { ParamSpec } from '../../params.ts';
 
-export type { GeometrySource };
+export type { GeometrySource, SourceGroup };
 
 /** Wrapping directions need even counts, or the 2-colouring fails. */
 function evenIf(wrap: boolean | undefined, n: number): number {
@@ -70,7 +72,7 @@ function sourceFromRecipe(r: Recipe, cellType: CellType): GeometrySource {
     const mesh = cellType === 'tri' ? makeTriangleGrid(r.map, domain) : makeParametricMesh(r.map, domain);
     return { cellType, mesh };
   };
-  return { id: r.id, label: r.label, cellType, params: resolutionParams(r.nu, r.nv), build };
+  return { id: r.id, label: r.label, cellType, group: 'surface', params: resolutionParams(r.nu, r.nv), build };
 }
 
 /** A single equilateral triangle on the xz-plane — the minimal tri model. */
@@ -82,13 +84,13 @@ function singleTriangleMesh(): ParsedMesh {
 }
 
 const singleTriangle: GeometrySource = {
-  id: 'Triangle', label: 'Single triangle', cellType: 'tri',
+  id: 'Triangle', label: 'Single triangle', cellType: 'tri', group: 'surface',
   build: () => ({ cellType: 'tri', mesh: singleTriangleMesh() }),
 };
 
 /** Regular {3,6} triangular tiling — equilateral triangles, symmetric weave. */
 const regularTriGrid: GeometrySource = {
-  id: 'RegularTriGrid', label: 'Regular triangle grid', cellType: 'tri',
+  id: 'RegularTriGrid', label: 'Regular triangle grid', cellType: 'tri', group: 'surface',
   params: [{ key: 'n', label: 'Knits', min: 4, max: 80, step: 1, default: 10 }],
   build: (o) => ({ cellType: 'tri', mesh: makeTriangleGrid(triLatticeMap(4), { nu: o.n, nv: o.n }) }),
 };
@@ -103,7 +105,7 @@ const TILING_MODEL: DiskModel = 'poincare';
 
 function tilingSource(p: number, q: number, r: number): GeometrySource {
   return {
-    id: `tiling-${p}-${q}-${r}`, label: `Hyperbolic (${p},${q},${r})`, cellType: 'tri',
+    id: `tiling-${p}-${q}-${r}`, label: `Hyperbolic (${p},${q},${r})`, cellType: 'tri', group: 'hyperbolic',
     params: [{ key: 'depth', label: 'Depth', min: 4, max: 24, step: 1, default: 16 }],
     build: (o) => ({
       cellType: 'tri',
@@ -111,8 +113,31 @@ function tilingSource(p: number, q: number, r: number): GeometrySource {
       // Tubes follow the hyperbolic metric: thick at the centre, thinning toward
       // the disk boundary at radius TILING_SCALE (the conformal factor, fixed).
       radiusField: metricTaper(TILING_SCALE, TILING_MODEL),
+      // The Poincaré disk boundary radius, so the demo can frame it with a border.
+      meta: { diskRadius: TILING_SCALE },
     }),
   };
+}
+
+const TWO_PI = Math.PI * 2;
+
+/** S³ surface, stereographically projected, with the stereographic taper — in
+ *  BOTH fabrics (quad + triangle), sharing the same (u,v) map. */
+function s3Sources(
+  id: string, label: string, map: (p: Record<string, number>) => Parametric,
+  defNu: number, defNv: number, shapeParams: ParamSpec[],
+): GeometrySource[] {
+  return (['quad', 'tri'] as CellType[]).map((cellType) => ({
+    id, label, cellType, group: 's3',
+    params: [...shapeParams, ...resolutionParams(defNu, defNv)],
+    build: (o) => ({
+      cellType,
+      mesh: (cellType === 'tri' ? makeTriangleGrid : makeParametricMesh)(
+        map(o), { nu: evenIf(true, o.nu), nv: evenIf(true, o.nv), wrapU: true, wrapV: true },
+      ),
+      radiusField: stereographicTaper(1),
+    }),
+  }));
 }
 
 export const sources: GeometrySource[] = [
@@ -125,10 +150,19 @@ export const sources: GeometrySource[] = [
   tilingSource(3, 3, 9),   // ÷3
   tilingSource(2, 3, 7),   // not ÷3 — rings only
   tilingSource(2, 4, 5),   // not ÷3 — rings only
+  ...s3Sources('Clifford', 'Clifford torus', (o) => cliffordTorus(o.eta, o.rot), 80, 80, [
+    { key: 'eta', label: 'Shape', min: 0.3, max: 1.2, step: 0.01, default: Math.PI / 4 },
+    { key: 'rot', label: 'Rotate S³', min: 0, max: TWO_PI, step: 0.01, default: 0 },
+  ]),
+  ...s3Sources('Hopf', 'Hopf torus', (o) => hopfNGon(Math.round(o.n), o.amp, o.rot), 160, 60, [
+    { key: 'n', label: 'Symmetry', min: 2, max: 9, step: 1, default: 3 },
+    { key: 'amp', label: 'Lobes', min: 0, max: 1.3, step: 0.01, default: 0.6 },
+    { key: 'rot', label: 'Rotate S³', min: 0, max: TWO_PI, step: 0.01, default: 0 },
+  ]),
 ];
 
-export function sourcesFor(cellType: CellType): GeometrySource[] {
-  return sources.filter((s) => s.cellType === cellType);
+export function sourcesFor(cellType: CellType, group?: SourceGroup): GeometrySource[] {
+  return sources.filter((s) => s.cellType === cellType && (group === undefined || s.group === group));
 }
 
 export interface SourceControls {
@@ -143,9 +177,9 @@ export interface SourceControls {
 export function buildSourceControls(
   tab: Tab,
   cellType: CellType,
-  config: { value?: string; label?: string; onChange: () => void },
+  config: { value?: string; label?: string; group?: SourceGroup; onChange: () => void },
 ): SourceControls {
-  const items = sourcesFor(cellType);
+  const items = sourcesFor(cellType, config.group);
   const picker = buildParamPicker(tab, {
     label: config.label ?? 'Surface',
     items,

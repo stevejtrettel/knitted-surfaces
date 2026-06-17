@@ -9,11 +9,20 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` for the demo index, or go directly to any demo:
+Open `http://localhost:5173` for the demo index, or go directly to any demo. They
+all share one studio scaffold (`src/scene/weaveStudio.ts`) — scene, materials, the
+Look/Render controls, and the rebuild pipeline — differing only in which geometry
+they show:
 
-- `/demos/simple/` — The raw weave on a flat grid, curves only, no lighting. Switch between a **Quad grid** and a **Triangle grid** — each a first-class fabric with its own pattern set.
-- `/demos/obj/` — Drop in your own quad mesh. Studio lighting, GPU path tracing, screenshot, material controls, OBJ export.
-- `/demos/surfaces/` — A gallery of sample surfaces (revolution + parametric) from the geometry-source registry, with the full panel. Fork this for a focused single-surface demo.
+- `/demos/hyperbolic/` — Triangle tilings of the Poincaré disk. Metric-tapered tubes (thick centre → thin boundary) and a disk border with its own width / inset / colour.
+- `/demos/3-sphere/` — Clifford and Hopf tori in S³, stereographically projected; tube width follows the stereographic metric (fattens outward).
+- `/demos/surfaces/` — A gallery of ordinary surfaces (revolution + parametric), quad or triangle fabric.
+- `/demos/quad-obj/` and `/demos/tri-obj/` — Load and knit your own quad or triangle mesh.
+- `/demos/tile/` — Fundamental-domain inspector: one triangle with its weave and the **ports** each pattern declares; toggle the tiling to see how it repeats.
+
+A geometry can carry its own **metric** as `radiusField` (hyperbolic `metricTaper`,
+S³ `stereographicTaper`) and a **`meta.diskRadius`** for the disk border — the studio
+applies both automatically.
 
 ## The pipeline
 
@@ -42,7 +51,10 @@ src/
 │   ├── parametric.ts       makeParametricMesh(f, domain) — the one quad builder
 │   ├── triangleGrid.ts     makeTriangleGrid(f, domain) — triangle builder
 │   ├── maps.ts             Profiles + parametric-surface maps + grid map
-│   └── sources/            GeometrySource registry + buildSourceControls
+│   ├── s3.ts               Clifford / Hopf tori in S³ (stereographic projection)
+│   ├── radiusFields.ts     metricTaper (hyperbolic) / stereographicTaper — per-geometry tube metric
+│   ├── tilings/            Hyperbolic (p,q,r) triangle-group tiling
+│   └── sources/            GeometrySource registry (grouped) + buildSourceControls
 ├── weave/
 │   ├── types.ts            Port, Strand, StrandSegment, Analysis, Pattern, StrandSample, WeaveResult
 │   ├── tile/               Tile/Port/Arc types, the stitcher, and the tile factories
@@ -51,7 +63,7 @@ src/
 │   ├── generateStrands.ts  apply a pattern's render to every stitched strand
 │   └── splines.ts          Hermite / Catmull-Rom helpers
 ├── output/        WeaveResult → tubes (variable radius) / lines / OBJ
-├── scene/         App, ControlPanel, presets, path-trace + screenshot, paramPicker
+├── scene/         App, weaveStudio (shared demo scaffold), ControlPanel, presets, path-trace + screenshot, paramPicker
 ├── params.ts      Shared ParamSpec (neutral, used by sources and patterns)
 └── io.ts          Browser IO (file picker, downloads)
 ```

@@ -28,3 +28,15 @@ export function metricTaper(diskRadius: number, model: DiskModel): RadiusField {
     return 1 / (ch * ch); // sech²(d/2)  (= 1 − r² in Poincaré coordinates)
   };
 }
+
+/**
+ * Tube scaling for a stereographically projected surface (e.g. a Hopf torus
+ * projected S³ → ℝ³). Stereographic projection has conformal factor
+ * 2/(1+|p|²), so a tube of constant *intrinsic* (spherical) width renders with
+ * radius ∝ (1+|p|²) — it grows away from the origin (the projection compresses
+ * far regions). Returns `1 + strength·|p|²` (1 at the origin); `strength` scales
+ * the growth (0 = uniform width, 1 = the exact metric factor).
+ */
+export function stereographicTaper(strength = 1): RadiusField {
+  return (p) => 1 + strength * (p.x * p.x + p.y * p.y + p.z * p.z);
+}
