@@ -95,6 +95,7 @@ export function buildSweptTube(
   const stride = radialSegments + 1;
   const positions: number[] = [];
   const normalAttr: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
   const dir = new THREE.Vector3();
   const binormal = new THREE.Vector3();
@@ -104,11 +105,13 @@ export function buildSweptTube(
     const nrm = normals[i];
     binormal.crossVectors(t, nrm);
     const r = radii[i];
+    const u = n > 1 ? i / (n - 1) : 0;
     for (let j = 0; j <= radialSegments; j++) {
-      const v = (j / radialSegments) * Math.PI * 2;
-      dir.copy(nrm).multiplyScalar(Math.cos(v)).addScaledVector(binormal, Math.sin(v)).normalize();
+      const angle = (j / radialSegments) * Math.PI * 2;
+      dir.copy(nrm).multiplyScalar(Math.cos(angle)).addScaledVector(binormal, Math.sin(angle)).normalize();
       positions.push(points[i].x + dir.x * r, points[i].y + dir.y * r, points[i].z + dir.z * r);
       normalAttr.push(dir.x, dir.y, dir.z);
+      uvs.push(u, j / radialSegments);
     }
   }
 
@@ -120,7 +123,10 @@ export function buildSweptTube(
       const b = iN * stride + j;
       const c = iN * stride + j + 1;
       const d = i * stride + j + 1;
-      indices.push(a, b, d, b, c, d);
+      // Wound so the geometric normal matches the outward shading normal. The
+      // reverse order (a,b,d / b,c,d) faces the triangles INWARD, which the path
+      // tracer reads as the surface facing away from all light → black tubes.
+      indices.push(a, d, b, b, d, c);
     }
   }
 
@@ -128,6 +134,10 @@ export function buildSweptTube(
   geometry.setIndex(indices);
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normalAttr, 3));
+  // uv is needed so the path tracer can merge tubes with other meshes (e.g. the
+  // floor) into one BVH geometry — without it the attribute sets mismatch and the
+  // merged tube surface renders black. (three's TubeGeometry supplied uv before.)
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   return geometry;
 }
 
