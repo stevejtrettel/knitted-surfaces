@@ -146,6 +146,28 @@ export const kuen: Parametric = (u, v) => {
   );
 };
 
+/**
+ * The classic "bottle" Klein immersion — piecewise in v ∈ [0,4π] (rounded bottom,
+ * rising body, the handle bending over, and the neck plunging back through the
+ * wall). The cross-section u wraps; v runs the length (its two ends coincide in
+ * space, so the bottle reads as closed). Ported from Code/World kleinBottle.
+ */
+export const kleinClassic: Parametric = (a, b) => {
+  const u = a * TAU;       // cross-section (wraps)
+  const v = b * 2 * TAU;   // length, 0..4π
+  let x: number, y: number, z: number;
+  if (v < Math.PI) {
+    x = (2.5 - 1.5 * Math.cos(v)) * Math.cos(u); y = (2.5 - 1.5 * Math.cos(v)) * Math.sin(u); z = -2.5 * Math.sin(v);
+  } else if (v < 2 * Math.PI) {
+    x = (2.5 - 1.5 * Math.cos(v)) * Math.cos(u); y = (2.5 - 1.5 * Math.cos(v)) * Math.sin(u); z = 3 * v - 3 * Math.PI;
+  } else if (v < 3 * Math.PI) {
+    x = -2 + (2 + Math.cos(u)) * Math.cos(v); y = Math.sin(u); z = (2 + Math.cos(u)) * Math.sin(v) + 3 * Math.PI;
+  } else {
+    x = -2 + 2 * Math.cos(v) - Math.cos(u); y = Math.sin(u); z = -3 * v + 12 * Math.PI;
+  }
+  return new Vector3(x, z - 4, y).multiplyScalar(0.395); // their z is the vertical axis
+};
+
 /** Klein bottle — the figure-8 immersion (wraps both ways; non-orientable). */
 export const kleinBottle: Parametric = (u, v) => {
   const U = u * TAU, V = v * TAU;

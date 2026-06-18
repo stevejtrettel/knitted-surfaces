@@ -17,7 +17,7 @@ import { makeTriangleGrid } from '../triangleGrid.ts';
 import { makeTriangleGroupMesh, type DiskModel } from '../tilings/triangleGroup.ts';
 import { cliffordTorus, hopfNGon } from '../s3.ts';
 import { metricTaper, stereographicTaper } from '../radiusFields.ts';
-import { profiles, revolutionMap, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle, scherk, dini, kuen, kleinBottle } from '../maps.ts';
+import { profiles, revolutionMap, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle, scherk, dini, kuen, kleinBottle, kleinClassic } from '../maps.ts';
 import { Tab } from '../../scene/panel.ts';
 import { buildParamPicker } from '../../scene/paramPicker.ts';
 import type { ParamSpec } from '../../params.ts';
@@ -61,6 +61,7 @@ const recipes: Recipe[] = [
   { id: 'Scherk', label: 'Scherk surface', map: scherk, nu: 48, nv: 48 },
   { id: 'Dini', label: 'Dini surface', map: dini, nu: 80, nv: 28 },
   { id: 'Kuen', label: 'Kuen surface', map: kuen, nu: 56, nv: 48 },
+  { id: 'Klein', label: 'Klein bottle', map: kleinClassic, wrapU: true, nu: 40, nv: 120 },
   // Flat grid
   { id: 'Grid', label: 'Flat grid', map: gridMap(4, 4), nu: 8, nv: 8 },
 ];
@@ -174,7 +175,7 @@ function costaSources(): GeometrySource[] {
 /** Klein bottle (quad + tri) — non-orientable u-seam gluing (see makeTwistedGrid). */
 function kleinSources(): GeometrySource[] {
   return (['quad', 'tri'] as CellType[]).map((cellType) => ({
-    id: 'Klein', label: 'Klein bottle', cellType, group: 'surface',
+    id: 'KleinFig8', label: 'Klein bottle (fig-8)', cellType, group: 'surface',
     params: resolutionParams(48, 48),
     build: (o) => ({
       cellType,
