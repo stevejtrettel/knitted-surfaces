@@ -57,3 +57,27 @@ export function makeParametricMesh(f: Parametric, domain: Domain): ParsedMesh {
 
   return { vertices, faces };
 }
+
+/**
+ * Drop faces that have any non-finite or far-away (|v| > maxRadius) vertex, then
+ * re-index the survivors. Opens the blow-up ends of surfaces like Costa into
+ * clean holes instead of letting runaway vertices stretch the mesh.
+ */
+export function trimByRadius(mesh: ParsedMesh, maxRadius: number): ParsedMesh {
+  const r2 = maxRadius * maxRadius;
+  const ok = mesh.vertices.map((v) => {
+    const d = v.x * v.x + v.y * v.y + v.z * v.z;
+    return Number.isFinite(d) && d <= r2;
+  });
+  const remap = new Int32Array(mesh.vertices.length).fill(-1);
+  const vertices: Vector3[] = [];
+  const faces: number[][] = [];
+  for (const f of mesh.faces) {
+    if (!f.every((i) => ok[i])) continue;
+    faces.push(f.map((i) => {
+      if (remap[i] < 0) { remap[i] = vertices.length; vertices.push(mesh.vertices[i]); }
+      return remap[i];
+    }));
+  }
+  return { vertices, faces };
+}

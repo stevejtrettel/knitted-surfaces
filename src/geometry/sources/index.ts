@@ -11,7 +11,8 @@
 import { Vector3 } from 'three';
 import type { CellType, Geometry, ParsedMesh } from '../types.ts';
 import type { GeometrySource, SourceGroup } from './types.ts';
-import { makeParametricMesh, type Parametric, type Domain } from '../parametric.ts';
+import { makeParametricMesh, trimByRadius, type Parametric, type Domain } from '../parametric.ts';
+import { costa } from '../costa.ts';
 import { makeTriangleGrid } from '../triangleGrid.ts';
 import { makeTriangleGroupMesh, type DiskModel } from '../tilings/triangleGroup.ts';
 import { cliffordTorus, hopfNGon } from '../s3.ts';
@@ -144,11 +145,39 @@ function s3Sources(
   }));
 }
 
+/** Costa minimal surface (quad + tri). The ℘-summed mesh is cached per resolution
+ *  so the Clip slider (which only re-trims) stays responsive. */
+function costaSources(): GeometrySource[] {
+  const map = costa(1);
+  return (['quad', 'tri'] as CellType[]).map((cellType) => {
+    let cacheKey = '';
+    let cached: ParsedMesh | null = null;
+    return {
+      id: 'Costa', label: 'Costa surface', cellType, group: 'surface',
+      params: [
+        { key: 'clip', label: 'Clip', min: 1.5, max: 6, step: 0.1, default: 3.5 },
+        ...resolutionParams(80, 80),
+      ],
+      build: (o) => {
+        const nu = evenIf(true, o.nu), nv = evenIf(true, o.nv);
+        const key = `${nu}x${nv}`;
+        if (key !== cacheKey) {
+          cached = (cellType === 'tri' ? makeTriangleGrid : makeParametricMesh)(
+            map, { nu, nv, wrapU: true, wrapV: true });
+          cacheKey = key;
+        }
+        return { cellType, mesh: trimByRadius(cached!, o.clip) };
+      },
+    };
+  });
+}
+
 export const sources: GeometrySource[] = [
   ...recipes.map((r) => sourceFromRecipe(r, 'quad')),
   singleTriangle,
   regularTriGrid,
   ...recipes.map((r) => sourceFromRecipe(r, 'tri')),
+  ...costaSources(),
   tilingSource(3, 3, 6),   // ÷3 — triaxial or rings
   tilingSource(6, 6, 6),   // ÷3
   tilingSource(3, 3, 9),   // ÷3
