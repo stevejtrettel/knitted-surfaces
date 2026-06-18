@@ -1,8 +1,11 @@
 import type { ParamSpec } from '../../params.ts';
 import type { CellType, Geometry } from '../types.ts';
 
-/** Which demo a source belongs to: ordinary surfaces, the hyperbolic plane, or S³. */
-export type SourceGroup = 'surface' | 'hyperbolic' | 's3';
+/**
+ * Which demo a source belongs to: ordinary surfaces, minimal surfaces,
+ * non-orientable/topological surfaces, the hyperbolic plane, or S³.
+ */
+export type SourceGroup = 'surface' | 'minimal' | 'topology' | 'hyperbolic' | 's3';
 
 /**
  * A geometry source: a named, parameterized recipe for building a `Geometry`.

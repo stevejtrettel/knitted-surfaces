@@ -12,12 +12,12 @@ import { Vector3 } from 'three';
 import type { CellType, Geometry, ParsedMesh } from '../types.ts';
 import type { GeometrySource, SourceGroup } from './types.ts';
 import { makeParametricMesh, makeTwistedGrid, trimByRadius, type Parametric, type Domain } from '../parametric.ts';
-import { costa } from '../costa.ts';
+import { costa, costaBoundaryLoops } from '../costa.ts';
 import { makeTriangleGrid } from '../triangleGrid.ts';
 import { makeTriangleGroupMesh, type DiskModel } from '../tilings/triangleGroup.ts';
 import { cliffordTorus, hopfNGon } from '../s3.ts';
 import { metricTaper, stereographicTaper } from '../radiusFields.ts';
-import { profiles, revolutionMap, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle, scherk, dini, kuen, kleinBottle, kleinClassic } from '../maps.ts';
+import { profiles, revolutionMap, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle, scherk, dini, kuen, kleinBottle, kleinClassic, boySurface, sudaneseMobius, enneperN, catalan, henneberg, richmond, bour, roman, crossCap, trinoid } from '../maps.ts';
 import { Tab } from '../../scene/panel.ts';
 import { buildParamPicker } from '../../scene/paramPicker.ts';
 import type { ParamSpec } from '../../params.ts';
@@ -45,23 +45,37 @@ interface Recipe {
   wrapV?: boolean;
   nu: number;
   nv: number;
+  /** Which demo it shows in. Default 'surface'. */
+  group?: SourceGroup;
 }
 
 const recipes: Recipe[] = [
   // Surfaces of revolution (wrap around the axis; wrapV if the profile closes)
   ...(['Torus', 'Vase', 'Sphere', 'Hourglass', 'Blob'] as const).map((name) => {
     const p = profiles[name];
-    return { id: name, label: p.label, map: revolutionMap(p.profile), wrapU: true, wrapV: p.closed, nu: 36, nv: 48 };
+    const group: SourceGroup = name === 'Torus' ? 'topology' : 'surface';
+    return { id: name, label: p.label, map: revolutionMap(p.profile), wrapU: true, wrapV: p.closed, nu: 36, nv: 48, group };
   }),
-  // Parametric surfaces
-  { id: 'Helicoid', label: 'Helicoid', map: helicoid, nu: 24, nv: 96 },
-  { id: 'Catenoid', label: 'Catenoid', map: catenoid, wrapV: true, nu: 28, nv: 48 },
-  { id: 'Enneper', label: 'Enneper surface', map: enneper, nu: 44, nv: 44 },
+  // Classic differential-geometry surfaces
   { id: 'MonkeySaddle', label: 'Monkey saddle', map: monkeySaddle, nu: 44, nv: 44 },
-  { id: 'Scherk', label: 'Scherk surface', map: scherk, nu: 48, nv: 48 },
   { id: 'Dini', label: 'Dini surface', map: dini, nu: 80, nv: 28 },
   { id: 'Kuen', label: 'Kuen surface', map: kuen, nu: 56, nv: 48 },
-  { id: 'Klein', label: 'Klein bottle', map: kleinClassic, wrapU: true, nu: 40, nv: 120 },
+  // Minimal surfaces
+  { id: 'Helicoid', label: 'Helicoid', map: helicoid, group: 'minimal', nu: 24, nv: 96 },
+  { id: 'Catenoid', label: 'Catenoid', map: catenoid, group: 'minimal', wrapV: true, nu: 28, nv: 48 },
+  { id: 'Scherk', label: 'Scherk surface', map: scherk, group: 'minimal', nu: 48, nv: 48 },
+  { id: 'Enneper', label: 'Enneper surface', map: enneper, group: 'minimal', nu: 44, nv: 44 },
+  { id: 'Enneper2', label: 'Enneper (order 2)', map: enneperN(2, 1.3, 0.32), group: 'minimal', nu: 52, nv: 52 },
+  { id: 'Enneper3', label: 'Enneper (order 3)', map: enneperN(3, 1.15, 0.28), group: 'minimal', nu: 56, nv: 56 },
+  { id: 'Catalan', label: 'Catalan surface', map: catalan, group: 'minimal', nu: 96, nv: 32 },
+  { id: 'Henneberg', label: 'Henneberg surface', map: henneberg, group: 'minimal', nu: 56, nv: 56 },
+  { id: 'Richmond', label: 'Richmond surface', map: richmond, group: 'minimal', wrapU: true, nu: 60, nv: 40 },
+  { id: 'Bour', label: 'Bour surface', map: bour, group: 'minimal', wrapU: true, nu: 96, nv: 40 },
+  // Non-orientable / projective-plane immersions
+  { id: 'Roman', label: 'Roman surface', map: roman, group: 'topology', wrapU: true, nu: 56, nv: 56 },
+  { id: 'CrossCap', label: 'Cross-cap', map: crossCap, group: 'topology', wrapU: true, nu: 56, nv: 36 },
+  { id: 'Klein', label: 'Klein bottle', map: kleinClassic, group: 'topology', wrapU: true, nu: 40, nv: 120 },
+  { id: 'Boy', label: "Boy's surface", map: boySurface, group: 'topology', wrapV: true, nu: 50, nv: 60 },
   // Flat grid
   { id: 'Grid', label: 'Flat grid', map: gridMap(4, 4), nu: 8, nv: 8 },
 ];
@@ -77,7 +91,7 @@ function sourceFromRecipe(r: Recipe, cellType: CellType): GeometrySource {
     const mesh = cellType === 'tri' ? makeTriangleGrid(r.map, domain) : makeParametricMesh(r.map, domain);
     return { cellType, mesh };
   };
-  return { id: r.id, label: r.label, cellType, group: 'surface', params: resolutionParams(r.nu, r.nv), build };
+  return { id: r.id, label: r.label, cellType, group: r.group ?? 'surface', params: resolutionParams(r.nu, r.nv), build };
 }
 
 /** A single equilateral triangle on the xz-plane — the minimal tri model. */
@@ -153,9 +167,10 @@ function costaSources(): GeometrySource[] {
     let cacheKey = '';
     let cached: ParsedMesh | null = null;
     return {
-      id: 'Costa', label: 'Costa surface', cellType, group: 'surface',
+      id: 'Costa', label: 'Costa surface', cellType, group: 'minimal',
       params: [
-        { key: 'clip', label: 'Clip', min: 1.5, max: 6, step: 0.1, default: 3.5 },
+        { key: 'radius', label: 'Radius', min: 1.5, max: 5, step: 0.1, default: 4 },
+        { key: 'height', label: 'Height', min: 1, max: 5, step: 0.1, default: 2 },
         ...resolutionParams(80, 80),
       ],
       build: (o) => {
@@ -166,16 +181,66 @@ function costaSources(): GeometrySource[] {
             map, { nu, nv, wrapU: true, wrapV: true });
           cacheKey = key;
         }
+        // trimByRadius bounds the mesh and removes the blow-up ends; the studio then
+        // clips the strands to the can {radius, |y|≤height} for a flush cut. The
+        // border curves are traced on the smooth surface (not the cut points).
+        const safety = Math.hypot(o.radius, o.height) * 1.3;
+        return {
+          cellType,
+          mesh: trimByRadius(cached!, safety),
+          meta: { clip: { radius: o.radius, halfHeight: o.height }, boundaryCurves: costaBoundaryLoops(o.radius, o.height) },
+        };
+      },
+    };
+  });
+}
+
+/** Trinoid (quad + tri) — a three-ended minimal surface. The WE integral is run
+ *  per vertex, so the mesh is cached per resolution; Clip re-trims to open the ends. */
+function trinoidSources(): GeometrySource[] {
+  return (['quad', 'tri'] as CellType[]).map((cellType) => {
+    let cacheKey = '';
+    let cached: ParsedMesh | null = null;
+    return {
+      id: 'Trinoid', label: 'Trinoid', cellType, group: 'minimal',
+      params: [
+        { key: 'clip', label: 'Clip', min: 1, max: 6, step: 0.1, default: 3 },
+        ...resolutionParams(120, 60),
+      ],
+      build: (o) => {
+        const nu = evenIf(true, o.nu), nv = o.nv;
+        const key = `${nu}x${nv}`;
+        if (key !== cacheKey) {
+          cached = (cellType === 'tri' ? makeTriangleGrid : makeParametricMesh)(
+            trinoid, { nu, nv, wrapU: true });
+          cacheKey = key;
+        }
         return { cellType, mesh: trimByRadius(cached!, o.clip) };
       },
     };
   });
 }
 
+/** Sudanese Möbius band in S³ (quad + tri) — non-orientable, with the width as an
+ *  open edge (makeTwistedGrid wrapJ=false). Its single boundary circle is ringed. */
+function sudaneseSources(): GeometrySource[] {
+  return (['quad', 'tri'] as CellType[]).map((cellType) => ({
+    id: 'Sudanese', label: 'Sudanese Möbius', cellType, group: 's3',
+    params: resolutionParams(120, 40),
+    build: (o) => ({
+      cellType,
+      // nu = around the loop (even, the twisted wrap); nv = across (open edge).
+      mesh: makeTwistedGrid(sudaneseMobius, evenIf(true, o.nu), o.nv, cellType === 'tri', false),
+      radiusField: stereographicTaper(1),
+      meta: { boundaryRings: true },
+    }),
+  }));
+}
+
 /** Klein bottle (quad + tri) — non-orientable u-seam gluing (see makeTwistedGrid). */
 function kleinSources(): GeometrySource[] {
   return (['quad', 'tri'] as CellType[]).map((cellType) => ({
-    id: 'KleinFig8', label: 'Klein bottle (fig-8)', cellType, group: 'surface',
+    id: 'KleinFig8', label: 'Klein bottle (fig-8)', cellType, group: 'topology',
     params: resolutionParams(48, 48),
     build: (o) => ({
       cellType,
@@ -191,6 +256,7 @@ export const sources: GeometrySource[] = [
   ...recipes.map((r) => sourceFromRecipe(r, 'tri')),
   ...kleinSources(),
   ...costaSources(),
+  ...trinoidSources(),
   tilingSource(3, 3, 6),   // ÷3 — triaxial or rings
   tilingSource(6, 6, 6),   // ÷3
   tilingSource(3, 3, 9),   // ÷3
@@ -205,6 +271,7 @@ export const sources: GeometrySource[] = [
     { key: 'amp', label: 'Lobes', min: 0, max: 1.3, step: 0.01, default: 0.6 },
     { key: 'rot', label: 'Rotate S³', min: 0, max: TWO_PI, step: 0.01, default: 0 },
   ]),
+  ...sudaneseSources(),
 ];
 
 export function sourcesFor(cellType: CellType, group?: SourceGroup): GeometrySource[] {

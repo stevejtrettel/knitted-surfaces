@@ -13,7 +13,7 @@ import { buildSourceControls, type SourceControls } from '@/geometry/sources/ind
 import { buildPatternControls, type PatternControls } from '@/weave/patterns/index.ts';
 import type { CellType } from '@/geometry/types.ts';
 
-const studio = createWeaveStudio({ cameraPosition: [0, 3, 7] });
+const studio = createWeaveStudio({ cameraPosition: [0, 3, 7], border: true });
 let cellType: CellType = 'quad';
 
 // Geometry tab: cell type + a rebuildable S³-source picker.

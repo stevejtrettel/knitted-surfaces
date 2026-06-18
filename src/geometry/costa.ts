@@ -77,6 +77,39 @@ function zeta(z: C): C {
 
 export const E1 = pzeta([0.5, 0]).p[0]; // ℘(½), real ≈ 6.875
 
+/**
+ * Smooth boundary loops for the three ends, traced as small circles in the (u,v)
+ * parameterization around each end's singular point (z = 0 planar, ½ and i/2 the
+ * catenoid ends) and evaluated through the EXACT map — so they ride the true
+ * surface, not the discretized grid. Each loop's parameter radius is matched (by
+ * bisection) so its mean spatial extent equals the clip can: the planar loop to
+ * radius R, each cap loop to height H. Returned as ordered closed point lists.
+ */
+export function costaBoundaryLoops(R: number, H: number, samples = 240): Vector3[][] {
+  const map = costa(1);
+  const trace = (u0: number, v0: number, rho: number, n: number): Vector3[] => {
+    const pts: Vector3[] = [];
+    for (let i = 0; i < n; i++) {
+      const t = (i / n) * 2 * Math.PI;
+      pts.push(map(u0 + rho * Math.cos(t), v0 + rho * Math.sin(t)));
+    }
+    return pts;
+  };
+  const mean = (loop: Vector3[], f: (p: Vector3) => number) => loop.reduce((s, p) => s + f(p), 0) / loop.length;
+  // The end blows up as ρ→0, so the metric decreases monotonically in ρ — bisect it.
+  const match = (u0: number, v0: number, f: (p: Vector3) => number, target: number): Vector3[] => {
+    let lo = 1e-4, hi = 0.45;
+    for (let it = 0; it < 44; it++) {
+      const mid = (lo + hi) / 2;
+      if (mean(trace(u0, v0, mid, 48), f) > target) lo = mid; else hi = mid;
+    }
+    return trace(u0, v0, (lo + hi) / 2, samples);
+  };
+  const rxz = (p: Vector3) => Math.hypot(p.x, p.z);
+  const absY = (p: Vector3) => Math.abs(p.y);
+  return [match(0, 0, rxz, R), match(0.5, 0, absY, H), match(0, 0.5, absY, H)];
+}
+
 /** Costa's minimal surface as a `(u,v)∈[0,1]² → ℝ³` map (scaled). */
 export function costa(scaleAmt: number): Parametric {
   const k = Math.PI / (2 * E1);

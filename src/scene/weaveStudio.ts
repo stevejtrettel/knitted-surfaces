@@ -29,6 +29,8 @@ import { makeStrandLines } from '../output/lines.ts';
 import { removeStrandGroup } from '../output/cleanup.ts';
 import { exportTubesOBJ, exportCurvesOBJ } from '../output/obj.ts';
 import { downloadOBJ } from '../io.ts';
+import { boundaryLoops, fitCircle, type Circle } from '../geometry/boundary.ts';
+import { clipStrands, type ClipCan } from '../weave/clip.ts';
 import type { Geometry } from '../geometry/types.ts';
 import type { Pattern, WeaveResult } from '../weave/types.ts';
 
@@ -86,7 +88,7 @@ export function createWeaveStudio(opts: WeaveStudioOptions = {}): WeaveStudio {
   let borderWidth = 0.06;
   let borderInset = 0.1;
   let group: THREE.Group | null = null;
-  let borderMesh: THREE.Mesh | null = null;
+  let borderGroup: THREE.Group | null = null;
   let providers: StudioProviders | null = null;
 
   const panel = new ControlPanel({ title: 'Knit' });
@@ -99,23 +101,65 @@ export function createWeaveStudio(opts: WeaveStudioOptions = {}): WeaveStudio {
     const analysis = analyze(geometry, pattern);
     let result = generateStrands(analysis, pattern, providers!.options());
     result = smoothStrands(result, smoothing);
-    return geometry.radiusField ? applyRadiusTaper(result, geometry.radiusField, tubeRadius) : result;
+    if (geometry.radiusField) result = applyRadiusTaper(result, geometry.radiusField, tubeRadius);
+    const clip = geometry.meta?.clip as ClipCan | undefined;
+    if (clip) result = clipStrands(result, clip);
+    return result;
   }
 
   function clearBorder(): void {
-    if (borderMesh) { app.scene.remove(borderMesh); borderMesh.geometry.dispose(); borderMesh = null; }
+    if (!borderGroup) return;
+    app.scene.remove(borderGroup);
+    borderGroup.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });
+    borderGroup = null;
   }
 
-  /** Frame the disk boundary for geometries that declare `meta.diskRadius`. */
+  function addBorderMesh(g: THREE.Group, geom: THREE.BufferGeometry): THREE.Mesh {
+    const m = new THREE.Mesh(geom, borderMaterial);
+    m.frustumCulled = false;
+    g.add(m);
+    return m;
+  }
+  const Z_AXIS = new THREE.Vector3(0, 0, 1);
+
+  /** A round border ring on an oriented circle (the Möbius edge). */
+  function drawCircle(g: THREE.Group, c: Circle): void {
+    const mesh = addBorderMesh(g, new THREE.TorusGeometry(c.radius, borderWidth, 16, 220));
+    mesh.quaternion.setFromUnitVectors(Z_AXIS, c.normal);
+    mesh.position.copy(c.center);
+  }
+
+  /** A border ring that follows a closed boundary loop (waves with the surface). */
+  function drawLoop(g: THREE.Group, loop: THREE.Vector3[]): void {
+    const curve = new THREE.CatmullRomCurve3(loop, true, 'centripetal');
+    addBorderMesh(g, new THREE.TubeGeometry(curve, Math.max(loop.length * 3, 64), borderWidth, 16, true));
+  }
+
+  /**
+   * Frame a geometry's boundary: a flat ring for the hyperbolic disk
+   * (`meta.diskRadius`); smooth parameter-traced loops for a clipped surface
+   * (`meta.boundaryCurves` — Costa's ends, riding the true surface); else a circle
+   * per open mesh boundary loop (`meta.boundaryRings` — the Möbius edge).
+   */
   function updateBorder(geometry: Geometry): void {
     clearBorder();
     const diskRadius = geometry.meta?.diskRadius as number | undefined;
-    if (!showBorder || diskRadius === undefined) return;
-    const ring = new THREE.TorusGeometry(Math.max(borderWidth, diskRadius - borderInset), borderWidth, 24, 320);
-    ring.rotateX(Math.PI / 2); // lie flat in the xz-plane (the disk plane)
-    borderMesh = new THREE.Mesh(ring, borderMaterial);
-    borderMesh.frustumCulled = false;
-    app.scene.add(borderMesh);
+    const rings = geometry.meta?.boundaryRings === true;
+    const curves = geometry.meta?.boundaryCurves as THREE.Vector3[][] | undefined;
+    if (!showBorder || (diskRadius === undefined && !rings && !curves?.length)) return;
+    const g = new THREE.Group();
+    if (diskRadius !== undefined) {
+      const ring = new THREE.TorusGeometry(Math.max(borderWidth, diskRadius - borderInset), borderWidth, 24, 320);
+      ring.rotateX(Math.PI / 2); // lie flat in the xz-plane (the disk plane)
+      addBorderMesh(g, ring);
+    }
+    if (curves?.length) {
+      for (const loop of curves) drawLoop(g, loop);
+    } else if (rings) {
+      for (const loop of boundaryLoops(geometry.mesh)) drawCircle(g, fitCircle(loop));
+    }
+    borderGroup = g;
+    app.scene.add(g);
   }
 
   function rebuild(): void {

@@ -59,26 +59,33 @@ export function makeParametricMesh(f: Parametric, domain: Domain): ParsedMesh {
 }
 
 /**
- * Like the grid builders, but the u-direction wraps **non-orientably**: the seam
- * glues row u=1 to row u=0 with v reversed (j → nv−j). This is the gluing a Klein
- * bottle needs (`f(1,v) = f(0,1−v)` — the cross-section flips), which the plain
- * same-index wrap mangles into a stretched seam. v wraps normally. `tri` splits
- * each quad on a diagonal.
+ * Like the grid builders, but the **first** direction wraps **non-orientably**: the
+ * seam glues row i=1 to row i=0 with the j index reversed (j → nv−j). This is the
+ * gluing a Klein bottle needs (`f(1,v)=f(0,1−v)` — the cross-section flips), which a
+ * plain same-index wrap mangles into a stretched seam. `tri` splits each quad on a
+ * diagonal.
+ *
+ * `wrapJ` (default true) controls the second direction: true → it wraps normally
+ * (closed both ways, e.g. the figure-8 Klein bottle); false → it is an **open
+ * boundary** (nv+1 rows), as a Möbius band needs — the band loops in i with a width
+ * flip at the seam, while the width itself (j) is the single free edge.
  *
  * The result is genuinely non-orientable, so consistent winding/2-colouring fail
  * across the seam — chain mail (per-face) is the robust pattern here.
  */
-export function makeTwistedGrid(f: Parametric, nu: number, nv: number, tri: boolean): ParsedMesh {
+export function makeTwistedGrid(f: Parametric, nu: number, nv: number, tri: boolean, wrapJ = true): ParsedMesh {
+  const jCount = wrapJ ? nv : nv + 1;
   const vertices: Vector3[] = [];
-  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) vertices.push(f(i / nu, j / nv));
-  const id = (i: number, j: number) => i * nv + ((j % nv) + nv) % nv;
+  for (let i = 0; i < nu; i++) for (let j = 0; j < jCount; j++) vertices.push(f(i / nu, j / nv));
+  const id = (i: number, j: number) => i * jCount + j;
   const faces: number[][] = [];
   for (let i = 0; i < nu; i++) {
     const iN = (i + 1) % nu;
     const seam = i === nu - 1;
-    const fl = (j: number) => (seam ? (nv - j) % nv : j); // v-reversal at the u-seam
+    // at the i-seam the next row's columns are reversed (j → nv−j); else identity.
+    const fl = (j: number) => (seam ? (wrapJ ? (nv - j) % nv : nv - j) : j);
     for (let j = 0; j < nv; j++) {
-      const jN = (j + 1) % nv;
+      const jN = wrapJ ? (j + 1) % nv : j + 1;
       const a = id(i, j), b = id(i, jN), c = id(iN, fl(jN)), d = id(iN, fl(j));
       if (tri) { faces.push([a, b, d], [b, c, d]); } else faces.push([a, b, c, d]);
     }
