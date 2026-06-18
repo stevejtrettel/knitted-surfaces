@@ -11,7 +11,7 @@
 import { Vector3 } from 'three';
 import type { CellType, Geometry, ParsedMesh } from '../types.ts';
 import type { GeometrySource, SourceGroup } from './types.ts';
-import { makeParametricMesh, trimByRadius, type Parametric, type Domain } from '../parametric.ts';
+import { makeParametricMesh, makeTwistedGrid, trimByRadius, type Parametric, type Domain } from '../parametric.ts';
 import { costa } from '../costa.ts';
 import { makeTriangleGrid } from '../triangleGrid.ts';
 import { makeTriangleGroupMesh, type DiskModel } from '../tilings/triangleGroup.ts';
@@ -61,7 +61,6 @@ const recipes: Recipe[] = [
   { id: 'Scherk', label: 'Scherk surface', map: scherk, nu: 48, nv: 48 },
   { id: 'Dini', label: 'Dini surface', map: dini, nu: 80, nv: 28 },
   { id: 'Kuen', label: 'Kuen surface', map: kuen, nu: 56, nv: 48 },
-  { id: 'Klein', label: 'Klein bottle', map: kleinBottle, wrapU: true, wrapV: true, nu: 48, nv: 48 },
   // Flat grid
   { id: 'Grid', label: 'Flat grid', map: gridMap(4, 4), nu: 8, nv: 8 },
 ];
@@ -172,11 +171,24 @@ function costaSources(): GeometrySource[] {
   });
 }
 
+/** Klein bottle (quad + tri) — non-orientable u-seam gluing (see makeTwistedGrid). */
+function kleinSources(): GeometrySource[] {
+  return (['quad', 'tri'] as CellType[]).map((cellType) => ({
+    id: 'Klein', label: 'Klein bottle', cellType, group: 'surface',
+    params: resolutionParams(48, 48),
+    build: (o) => ({
+      cellType,
+      mesh: makeTwistedGrid(kleinBottle, evenIf(true, o.nu), evenIf(true, o.nv), cellType === 'tri'),
+    }),
+  }));
+}
+
 export const sources: GeometrySource[] = [
   ...recipes.map((r) => sourceFromRecipe(r, 'quad')),
   singleTriangle,
   regularTriGrid,
   ...recipes.map((r) => sourceFromRecipe(r, 'tri')),
+  ...kleinSources(),
   ...costaSources(),
   tilingSource(3, 3, 6),   // ÷3 — triaxial or rings
   tilingSource(6, 6, 6),   // ÷3
