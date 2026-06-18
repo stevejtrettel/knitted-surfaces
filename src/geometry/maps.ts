@@ -113,6 +113,50 @@ export const monkeySaddle: Parametric = (u, v) => {
   return new Vector3(X * s, (X * X * X - 3 * X * Y * Y) * s, Y * s);
 };
 
+/** Scherk's doubly-periodic minimal surface: a saddle tower, z = ln(cos x / cos y). */
+export const scherk: Parametric = (u, v) => {
+  const s = 1.45; // domain just inside the ±π/2 asymptotes
+  const x = (2 * u - 1) * s;
+  const y = (2 * v - 1) * s;
+  return new Vector3(x, 0.7 * Math.log(Math.cos(x) / Math.cos(y)), y);
+};
+
+/** Dini's surface — a twisted pseudosphere (constant negative curvature). */
+export const dini: Parametric = (u, v) => {
+  const a = 0.8, b = 0.2;
+  const U = u * 2 * TAU;                 // two turns of the twist
+  const V = 0.15 + v * 1.35;            // (0, ~π/2), away from the v→0 singularity
+  return new Vector3(
+    a * Math.cos(U) * Math.sin(V),
+    a * (Math.cos(V) + Math.log(Math.tan(V / 2))) + b * U,
+    a * Math.sin(U) * Math.sin(V),
+  );
+};
+
+/** Kuen surface — a constant-negative-curvature surface with a bulb and tail. */
+export const kuen: Parametric = (u, v) => {
+  const U = (2 * u - 1) * 4.5;
+  const V = 0.5 + v * 2.4;             // (0, π), clamped off both ln-singular ends
+  const sv = Math.sin(V);
+  const denom = 1 + U * U * sv * sv;
+  return new Vector3(
+    0.7 * 2 * (Math.cos(U) + U * Math.sin(U)) * sv / denom,
+    0.7 * (Math.log(Math.tan(V / 2)) + 2 * Math.cos(V) / denom),
+    0.7 * 2 * (Math.sin(U) - U * Math.cos(U)) * sv / denom,
+  );
+};
+
+/** Klein bottle — the figure-8 immersion (wraps both ways; non-orientable). */
+export const kleinBottle: Parametric = (u, v) => {
+  const U = u * TAU, V = v * TAU;
+  const c = Math.cos(U / 2) * Math.sin(V) - Math.sin(U / 2) * Math.sin(2 * V);
+  return new Vector3(
+    0.6 * (2 + c) * Math.cos(U),
+    0.6 * (Math.sin(U / 2) * Math.sin(V) + Math.cos(U / 2) * Math.sin(2 * V)),
+    0.6 * (2 + c) * Math.sin(U),
+  );
+};
+
 // ── Flat grid ──────────────────────────────────────────────────
 
 /** A flat rectangle on the xz-plane, centered at the origin. */

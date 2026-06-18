@@ -16,7 +16,7 @@ import { makeTriangleGrid } from '../triangleGrid.ts';
 import { makeTriangleGroupMesh, type DiskModel } from '../tilings/triangleGroup.ts';
 import { cliffordTorus, hopfNGon } from '../s3.ts';
 import { metricTaper, stereographicTaper } from '../radiusFields.ts';
-import { profiles, revolutionMap, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle } from '../maps.ts';
+import { profiles, revolutionMap, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle, scherk, dini, kuen, kleinBottle } from '../maps.ts';
 import { Tab } from '../../scene/panel.ts';
 import { buildParamPicker } from '../../scene/paramPicker.ts';
 import type { ParamSpec } from '../../params.ts';
@@ -57,6 +57,10 @@ const recipes: Recipe[] = [
   { id: 'Catenoid', label: 'Catenoid', map: catenoid, wrapV: true, nu: 28, nv: 48 },
   { id: 'Enneper', label: 'Enneper surface', map: enneper, nu: 44, nv: 44 },
   { id: 'MonkeySaddle', label: 'Monkey saddle', map: monkeySaddle, nu: 44, nv: 44 },
+  { id: 'Scherk', label: 'Scherk surface', map: scherk, nu: 48, nv: 48 },
+  { id: 'Dini', label: 'Dini surface', map: dini, nu: 80, nv: 28 },
+  { id: 'Kuen', label: 'Kuen surface', map: kuen, nu: 56, nv: 48 },
+  { id: 'Klein', label: 'Klein bottle', map: kleinBottle, wrapU: true, wrapV: true, nu: 48, nv: 48 },
   // Flat grid
   { id: 'Grid', label: 'Flat grid', map: gridMap(4, 4), nu: 8, nv: 8 },
 ];
