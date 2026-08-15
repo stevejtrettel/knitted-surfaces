@@ -1,9 +1,9 @@
 import { Vector3 } from 'three';
-import type { HalfEdgeMesh } from '../../geometry/HalfEdgeMesh.ts';
 import type { Pattern, Analysis, Strand, StrandSegment } from '../types.ts';
 import { edgeMidpoint, faceCenter, faceNormal } from '../../geometry/geometry.ts';
 import { sampleCatmullRom } from '../splines.ts';
 import { threadTile } from '../tile/tiles.ts';
+import { minLift } from '../clearance.ts';
 
 export interface LoopOptions {
   amplitude?: number;
@@ -16,13 +16,13 @@ const DEFAULT_SAMPLES_PER_SEGMENT = 5;
 const DEFAULT_LOOP_HEIGHT = 1.5;
 
 function computeLoopWaypoints(
-  mesh: HalfEdgeMesh,
+  analysis: Analysis,
   seg: StrandSegment,
-  positions: Vector3[],
   loopHeight: number,
   amplitude: number,
   sign: number,
 ): Vector3[] {
+  const { mesh, positions } = analysis;
   const entry = edgeMidpoint(seg.entryEdge, positions);
   const exit = edgeMidpoint(seg.exitEdge, positions);
   const center = faceCenter(mesh, seg.face, positions);
@@ -64,7 +64,9 @@ function computeLoopWaypoints(
     exit,
   ];
 
-  const localAmplitude = amplitude * hLen;
+  // Amplitude is a fraction of the stitch's own width, floored by the lift the
+  // yarn needs to clear the loop it passes through.
+  const localAmplitude = Math.max(amplitude * hLen, minLift(analysis, center));
   const displacements = [0, -sign, -sign, 0, sign, +sign, 0];
   const normals = [normal, normal, normal, apexNormal, normal, normal, normal];
 
@@ -90,15 +92,13 @@ export const loopPattern: Pattern<LoopOptions> = {
     const amplitude = options.amplitude ?? DEFAULT_AMPLITUDE;
     const samplesPerSegment = options.samplesPerSegment ?? DEFAULT_SAMPLES_PER_SEGMENT;
     const loopHeight = options.loopHeight ?? DEFAULT_LOOP_HEIGHT;
-    const { mesh, positions, faceColors } = analysis;
 
     const points: Vector3[] = [];
 
     for (let i = 0; i < strand.segments.length; i++) {
       const seg = strand.segments[i];
-      const sign = faceColors[seg.face.index] === 0 ? 1 : -1;
 
-      const wp = computeLoopWaypoints(mesh, seg, positions, loopHeight, amplitude, sign);
+      const wp = computeLoopWaypoints(analysis, seg, loopHeight, amplitude, seg.side);
       const loopPoints = sampleCatmullRom(wp, samplesPerSegment, i === 0);
       points.push(...loopPoints);
     }

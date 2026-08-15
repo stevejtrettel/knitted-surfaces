@@ -3,6 +3,7 @@ import type { HalfEdgeMesh } from '../geometry/HalfEdgeMesh.ts';
 import type { Face, HalfEdge, CellType } from '../geometry/types.ts';
 import type { ParamSpec } from '../params.ts';
 import type { TileFactory } from './tile/types.ts';
+import type { WidthField } from './width.ts';
 
 export type { ParamSpec };
 
@@ -34,12 +35,31 @@ export interface StrandSegment {
   entryEdge: HalfEdge;
   exitEdge: HalfEdge;
   topEdge: HalfEdge;
+  /**
+   * Over (+1) / under (−1) for this crossing, assigned by `assignSides` — the
+   * strand-walking successor to reading the face 2-colouring directly. Patterns
+   * that draw a thread crossing another thread should use this; patterns whose
+   * handedness is a property of the CELL rather than the thread (the corner
+   * weaves' held level, chain mail's rings) keep using `Analysis.faceColors`.
+   */
+  side: 1 | -1;
 }
 
 export interface Strand {
   segments: StrandSegment[];
   family: FamilyId;
   closed: boolean;
+}
+
+/**
+ * How thick the yarn is and how much room crossings need — the properties of the
+ * *fabric* rather than of the mesh or the stitch. Supplied by the studio (it owns
+ * the width controls) and read by patterns through `clearance.ts`.
+ */
+export interface Fabric {
+  width: WidthField;
+  /** Gap left at a crossing, as a fraction of the yarn radius. */
+  clearance: number;
 }
 
 /** Output of the routing layer — a mesh resolved into threadable strands. */
@@ -51,6 +71,9 @@ export interface Analysis {
   faceColors: number[];
   strands: Strand[];
   availableFamilies: FamilyId[];
+  fabric: Fabric;
+  /** Crossings where the over/under alternation could not be satisfied. */
+  sideDefects: number;
 }
 
 /** A point on a strand curve, optionally with its own tube radius. */

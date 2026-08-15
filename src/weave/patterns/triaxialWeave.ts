@@ -4,6 +4,7 @@ import type { HalfEdgeMesh } from '../../geometry/HalfEdgeMesh.ts';
 import type { Pattern, Analysis, Strand } from '../types.ts';
 import { faceNormal } from '../../geometry/geometry.ts';
 import { threadTile } from '../tile/tiles.ts';
+import { minLift } from '../clearance.ts';
 
 /**
  * Tri-axial weave.
@@ -81,8 +82,10 @@ function triWeaveCurve(strand: Strand, analysis: Analysis, options: TriaxialOpti
       const px = midpoint(seg.exitEdge, positions);
 
       // Endpoint heights (edge-intrinsic) and normals (shared across the edge).
-      const he = overUnder(f, edgeFamilies[seg.entryEdge.index]) * hScale;
-      const hx = overUnder(f, edgeFamilies[seg.exitEdge.index]) * hScale;
+      // Height at each crossing: the artistic scale, floored by what the yarn
+      // needs to clear the two strands it meets at these very points.
+      const he = overUnder(f, edgeFamilies[seg.entryEdge.index]) * Math.max(hScale, minLift(analysis, pe));
+      const hx = overUnder(f, edgeFamilies[seg.exitEdge.index]) * Math.max(hScale, minLift(analysis, px));
       const ne = edgeNormal(mesh, seg.entryEdge, positions);
       const nx = edgeNormal(mesh, seg.exitEdge, positions);
 

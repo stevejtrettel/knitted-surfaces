@@ -2,6 +2,7 @@ import { Vector3 } from 'three';
 import type { Pattern, Analysis, Strand, StrandSegment } from '../types.ts';
 import { faceCenter, faceNormal } from '../../geometry/geometry.ts';
 import { cornerTile } from '../tile/tiles.ts';
+import { minLift } from '../clearance.ts';
 
 /**
  * Two corner-arc weaves on the same tile (three arcs per triangle, one flanking
@@ -74,7 +75,7 @@ function segmentArc(
   // Face 2-colour flips the held over/under handedness (z→−z) on neighbouring
   // triangles, so the held level stays continuous across each shared port.
   const sign = analysis.faceColors[seg.face.index] === 0 ? 1 : -1;
-  const amp = sign * amplitude * chord;
+  const amp = sign * Math.max(amplitude * chord, minLift(analysis, g));
   const d = reach * chord;
 
   // Inward edge-normal at each port (perpendicular to that edge, toward the

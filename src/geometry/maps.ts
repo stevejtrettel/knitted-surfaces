@@ -31,6 +31,53 @@ export function revolutionMap(profile: Profile): Parametric {
   };
 }
 
+/**
+ * Reparameterize a profile by arc length: the returned profile advances at
+ * constant speed along the curve, so sampling it uniformly gives evenly spaced
+ * rows of cells.
+ *
+ * This matters more than it sounds. A profile written the obvious way — "y goes
+ * from −2 to 2, radius is some function of y" — moves fast through the steep
+ * parts and slowly through the flat ones, so the mesh comes out with cells
+ * bunched at the waist of an hourglass and stretched at its flare. Every stitch
+ * then inherits that distortion, and no amount of width compensation downstream
+ * hides a weave whose gauge changes down the piece. Fixing the parameterization
+ * removes the cause instead: the cells come out square-ish everywhere, and the
+ * conformal width blend has almost nothing left to correct.
+ *
+ * The lookup inverts the cumulative-length table with a binary search and
+ * interpolates the *parameter*, then evaluates the original profile there, so
+ * every point stays exactly on the true curve.
+ */
+export function evenProfile(profile: Profile, samples = 512): Profile {
+  const ts: number[] = [];
+  const cum: number[] = [0];
+  let prev = profile(0);
+  ts.push(0);
+  for (let i = 1; i <= samples; i++) {
+    const t = i / samples;
+    const p = profile(t);
+    const d = Math.hypot(p.r - prev.r, p.y - prev.y);
+    cum.push(cum[i - 1] + (Number.isFinite(d) ? d : 0));
+    ts.push(t);
+    prev = p;
+  }
+  const total = cum[samples];
+  if (!(total > 0)) return profile;
+
+  return (t: number) => {
+    const target = Math.min(1, Math.max(0, t)) * total;
+    let lo = 0, hi = samples;
+    while (lo < hi - 1) {
+      const mid = (lo + hi) >> 1;
+      if (cum[mid] <= target) lo = mid; else hi = mid;
+    }
+    const span = cum[lo + 1] - cum[lo];
+    const f = span > 1e-12 ? (target - cum[lo]) / span : 0;
+    return profile(ts[lo] + (ts[lo + 1] - ts[lo]) * f);
+  };
+}
+
 export interface ProfileDef {
   label: string;
   profile: Profile;
@@ -171,7 +218,7 @@ export const kleinClassic: Parametric = (a, b) => {
   } else {
     x = -2 + 2 * Math.cos(v) - Math.cos(u); y = Math.sin(u); z = -3 * v + 12 * Math.PI;
   }
-  return new Vector3(x, z - 4, y).multiplyScalar(0.395); // their z is the vertical axis
+  return new Vector3(x, z - 3.3, y).multiplyScalar(0.395); // their z is the vertical axis; offset clears the floor
 };
 
 /** Klein bottle — the figure-8 immersion (wraps both ways; non-orientable). */
@@ -214,23 +261,50 @@ export const boySurface: Parametric = (a, b) => {
 };
 
 /**
- * The Sudanese Möbius band — a minimal Möbius band sitting in S³, stereographically
- * projected to ℝ³ (its single boundary then a round circle). The S³ point is
- * (cos u cos v, cos u sin v, sin u cos(v/2), sin u sin(v/2)); a fixed π/4 rotation in
- * the (x,z) and (y,w) planes clears the band off the projection pole so the image is
- * compact. a = around the loop (wraps with a u→−u flip — the Möbius twist), b = across
- * the band (the open edge). Feed to `makeTwistedGrid(…, wrapJ=false)`. Ported from Code/World.
+ * Shared core of the Sudanese surfaces: the S³ point
+ * (cos u cos v, cos u sin v, sin u cos(v/2), sin u sin(v/2)), a fixed sequence of
+ * R⁴ plane rotations [i,j,angle] chosen so the surface clears the projection pole,
+ * then stereographic projection from +X.
  */
-export const sudaneseMobius: Parametric = (a, b) => {
-  const v = a * TAU;
-  const u = (b - 0.5) * Math.PI; // -π/2..π/2, the open Möbius edge
-  const cu = Math.cos(u), su = Math.sin(u);
-  const x = cu * Math.cos(v), y = cu * Math.sin(v), z = su * Math.cos(v / 2), w = su * Math.sin(v / 2);
-  const c = Math.SQRT1_2, s = Math.SQRT1_2; // rotate (x,z) & (y,w) by π/4
-  const X = c * x - s * z, Y = c * y - s * w, Z = s * x + c * z, W = s * y + c * w;
-  const d = 1 + X; // stereographic from the +X pole
-  return new Vector3(Y / d, Z / d, W / d);
-};
+function sudanesePoint(u: number, v: number, rots: readonly (readonly number[])[]): Vector3 {
+  const p = [Math.cos(u) * Math.cos(v), Math.cos(u) * Math.sin(v), Math.sin(u) * Math.cos(v / 2), Math.sin(u) * Math.sin(v / 2)];
+  for (const r of rots) {
+    const i = r[0], j = r[1], c = Math.cos(r[2]), s = Math.sin(r[2]), pi = p[i], pj = p[j];
+    p[i] = c * pi - s * pj; p[j] = s * pi + c * pj;
+  }
+  const d = 1 + p[0];
+  return new Vector3(p[1] / d, p[2] / d, p[3] / d);
+}
+
+// Möbius: rotate (x,z) & (y,w) by π/4. Klein: a longer chain (the full surface
+// covers more of S³, so the Möbius rotation would put the pole on it).
+const MOBIUS_ROT = [[0, 2, Math.PI / 4], [1, 3, Math.PI / 4]] as const;
+const KLEIN_ROT = [[0, 3, 1.2 * Math.PI], [1, 2, 1.2 * Math.PI], [0, 2, 0.5 * Math.PI], [1, 3, 0.5 * Math.PI], [0, 1, Math.PI]] as const;
+
+/**
+ * The Sudanese Möbius band — a minimal Möbius band in S³, stereographically
+ * projected (its single boundary then a round circle). a = around the loop (wraps
+ * with a u→−u flip — the Möbius twist), b = across the band (the open edge, u over
+ * the half-interval [−π/2,π/2]). Feed to `makeTwistedGrid(…, wrapJ=false)`.
+ */
+export const sudaneseMobius: Parametric = (a, b) => sudanesePoint((b - 0.5) * Math.PI, a * TAU, MOBIUS_ROT);
+
+/**
+ * The Sudanese Klein bottle — the Möbius band's cross-section carried all the way
+ * around a circle (u over the full [0,2π] rather than the half-interval), which
+ * closes the boundary off into an immersed Klein bottle (the cross-section circle
+ * reverses orientation each trip round, so it is one-sided). a = around (wraps,
+ * twisted u→−u), b = the cross-section circle (wraps). Feed to
+ * `makeTwistedGrid(…, wrapJ=true)` — the same non-orientable seam as the fig-8 Klein.
+ *
+ * `rot` rotates the (z,w) plane before projection (the "Rotate S³" slider), folding
+ * the surface through the pole; the fixed KLEIN_ROT after it just gives a clean
+ * default view.
+ */
+export function sudaneseKlein(rot: number): Parametric {
+  const rots: number[][] = [[2, 3, rot], ...KLEIN_ROT.map((r) => [...r])];
+  return (a, b) => sudanesePoint(b * TAU, a * TAU, rots);
+}
 
 // ── Minimal-surface gallery ────────────────────────────────────
 

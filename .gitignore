@@ -8,5 +8,7 @@ dist/
 
 # GitHub Pages build (scripts/build-all.mjs)
 dist-pages
-demos/*/index.html
 demos/__pages
+# NB: demos/*/index.html is deliberately NOT ignored — every demo here writes its
+# own page, and it carries the demo's gallery card text. build-all.mjs only
+# generates one for a demo that lacks it, and deletes it again when done.

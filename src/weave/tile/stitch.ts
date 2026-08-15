@@ -58,6 +58,7 @@ function makeSegment(
     entryEdge: entry.he,
     exitEdge: exit.he,
     topEdge,
+    side: 1, // provisional; `assignSides` walks the finished strands and sets it
   };
 }
 

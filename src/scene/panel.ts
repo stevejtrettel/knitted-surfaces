@@ -234,6 +234,7 @@ export class ControlPanel {
 
     const page = document.createElement('div');
     page.className = 'cp-page';
+    page.dataset.tab = name; // how `permalink.ts` keys this tab's controls
     this.pages.appendChild(page);
 
     const button = document.createElement('div');

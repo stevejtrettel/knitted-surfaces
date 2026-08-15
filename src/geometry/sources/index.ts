@@ -17,7 +17,7 @@ import { makeTriangleGrid } from '../triangleGrid.ts';
 import { makeTriangleGroupMesh, type DiskModel } from '../tilings/triangleGroup.ts';
 import { cliffordTorus, hopfNGon } from '../s3.ts';
 import { metricTaper, stereographicTaper } from '../radiusFields.ts';
-import { profiles, revolutionMap, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle, scherk, dini, kuen, kleinBottle, kleinClassic, boySurface, sudaneseMobius, enneperN, catalan, henneberg, richmond, bour, roman, crossCap, trinoid } from '../maps.ts';
+import { profiles, revolutionMap, evenProfile, gridMap, triLatticeMap, helicoid, catenoid, enneper, monkeySaddle, scherk, dini, kuen, kleinBottle, kleinClassic, boySurface, sudaneseMobius, sudaneseKlein, enneperN, catalan, henneberg, richmond, bour, roman, crossCap, trinoid } from '../maps.ts';
 import { Tab } from '../../scene/panel.ts';
 import { buildParamPicker } from '../../scene/paramPicker.ts';
 import type { ParamSpec } from '../../params.ts';
@@ -54,7 +54,9 @@ const recipes: Recipe[] = [
   ...(['Torus', 'Vase', 'Sphere', 'Hourglass', 'Blob'] as const).map((name) => {
     const p = profiles[name];
     const group: SourceGroup = name === 'Torus' ? 'topology' : 'surface';
-    return { id: name, label: p.label, map: revolutionMap(p.profile), wrapU: true, wrapV: p.closed, nu: 36, nv: 48, group };
+    // Arc-length parameterization, so rows of cells are evenly spaced down the
+    // profile instead of bunching wherever it happened to move fastest.
+    return { id: name, label: p.label, map: revolutionMap(evenProfile(p.profile)), wrapU: true, wrapV: p.closed, nu: 36, nv: 48, group };
   }),
   // Classic differential-geometry surfaces
   { id: 'MonkeySaddle', label: 'Monkey saddle', map: monkeySaddle, nu: 44, nv: 44 },
@@ -237,6 +239,23 @@ function sudaneseSources(): GeometrySource[] {
   }));
 }
 
+/** Sudanese Klein bottle in S³ (quad + tri) — the doubled Möbius band, closed
+ *  (wrapJ=true), with a Rotate S³ slider. Non-orientable → chain mail is robust. */
+function sudaneseKleinSources(): GeometrySource[] {
+  return (['quad', 'tri'] as CellType[]).map((cellType) => ({
+    id: 'SudaneseKlein', label: 'Sudanese Klein bottle', cellType, group: 's3',
+    params: [
+      { key: 'rot', label: 'Rotate S³', min: 0, max: TWO_PI, step: 0.01, default: 0 },
+      ...resolutionParams(120, 60),
+    ],
+    build: (o) => ({
+      cellType,
+      mesh: makeTwistedGrid(sudaneseKlein(o.rot), evenIf(true, o.nu), evenIf(true, o.nv), cellType === 'tri', true),
+      radiusField: stereographicTaper(1),
+    }),
+  }));
+}
+
 /** Klein bottle (quad + tri) — non-orientable u-seam gluing (see makeTwistedGrid). */
 function kleinSources(): GeometrySource[] {
   return (['quad', 'tri'] as CellType[]).map((cellType) => ({
@@ -272,6 +291,7 @@ export const sources: GeometrySource[] = [
     { key: 'rot', label: 'Rotate S³', min: 0, max: TWO_PI, step: 0.01, default: 0 },
   ]),
   ...sudaneseSources(),
+  ...sudaneseKleinSources(),
 ];
 
 export function sourcesFor(cellType: CellType, group?: SourceGroup): GeometrySource[] {

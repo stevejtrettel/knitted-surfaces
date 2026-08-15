@@ -3,6 +3,7 @@ import type { Pattern, Analysis, Strand } from '../types.ts';
 import { edgeMidpoint, faceCenter, faceNormal } from '../../geometry/geometry.ts';
 import { sampleHermite } from '../splines.ts';
 import { threadTile } from '../tile/tiles.ts';
+import { liftAt } from '../clearance.ts';
 
 export interface WeaveOptions {
   amplitude?: number;
@@ -25,7 +26,7 @@ export const weavePattern: Pattern<WeaveOptions> = {
   generateStrandCurve(strand: Strand, analysis: Analysis, options: WeaveOptions): Vector3[] {
     const amplitude = options.amplitude ?? DEFAULT_AMPLITUDE;
     const samplesPerSegment = options.samplesPerSegment ?? DEFAULT_SAMPLES_PER_SEGMENT;
-    const { mesh, positions, faceColors } = analysis;
+    const { mesh, positions } = analysis;
 
     const points: Vector3[] = [];
 
@@ -46,11 +47,13 @@ export const weavePattern: Pattern<WeaveOptions> = {
 
       const basePoints = sampleHermite(p0, p1, t0, t1, samplesPerSegment, isFirst);
 
-      const sign = (faceColors[seg.face.index] === strand.family) ? 1 : -1;
+      // Lift is the artistic amplitude, floored by what the yarn's own thickness
+      // needs to clear the strand it crosses at this cell's centre.
+      const lift = seg.side * liftAt(analysis, center, amplitude);
 
       for (let j = 0; j < basePoints.length; j++) {
         const tParam = isFirst ? j / samplesPerSegment : (j + 1) / samplesPerSegment;
-        const displacement = sign * amplitude * Math.sin(Math.PI * tParam);
+        const displacement = lift * Math.sin(Math.PI * tParam);
         basePoints[j].addScaledVector(normal, displacement);
       }
 

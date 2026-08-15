@@ -15,6 +15,7 @@
 
 import { Vector3 } from 'three';
 import type { WeaveResult } from './types.ts';
+import { resampleByArcLength } from './resample.ts';
 
 /** One Chaikin corner-cutting round. Endpoints are pinned for open strands. */
 function chaikin(points: Vector3[], closed: boolean): Vector3[] {
@@ -33,13 +34,15 @@ function chaikin(points: Vector3[], closed: boolean): Vector3[] {
   return out;
 }
 
-/** Uniformly subsample a (smooth) polyline down to ~`target` points. */
+/**
+ * Subsample a (smooth) polyline down to ~`target` points, evenly in ARC LENGTH —
+ * not by index. Chaikin leaves points bunched wherever the curve turned hardest,
+ * and index-decimation preserves that bunching; spacing by distance spends the
+ * point budget where the tube actually needs it (see `resample.ts`).
+ */
 function decimate(points: Vector3[], target: number, closed: boolean): Vector3[] {
   if (points.length <= target || target < 2) return points;
-  const out: Vector3[] = [];
-  for (let t = 0; t < target; t++) out.push(points[Math.round((t * points.length) / target)] ?? points[points.length - 1]);
-  if (!closed) out[out.length - 1] = points[points.length - 1];
-  return out;
+  return resampleByArcLength(points, target, closed);
 }
 
 /**

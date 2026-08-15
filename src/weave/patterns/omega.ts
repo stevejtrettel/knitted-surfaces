@@ -1,9 +1,9 @@
 import { Vector3 } from 'three';
-import type { HalfEdgeMesh } from '../../geometry/HalfEdgeMesh.ts';
 import type { Pattern, Analysis, Strand, StrandSegment } from '../types.ts';
 import { edgeMidpoint, faceCenter, faceNormal } from '../../geometry/geometry.ts';
 import { sampleCatmullRom } from '../splines.ts';
 import { threadTile } from '../tile/tiles.ts';
+import { minLift } from '../clearance.ts';
 
 export interface OmegaOptions {
   amplitude?: number;
@@ -18,13 +18,13 @@ const DEFAULT_SAMPLES_PER_SEGMENT = 4;
 const DEFAULT_ARCH_HEIGHT = 1.8;
 
 function computeOmegaWaypoints(
-  mesh: HalfEdgeMesh,
+  analysis: Analysis,
   seg: StrandSegment,
-  positions: Vector3[],
   archHeight: number,
   amplitude: number,
   sign: number,
 ): Vector3[] {
+  const { mesh, positions } = analysis;
   const entry = edgeMidpoint(seg.entryEdge, positions);
   const exit = edgeMidpoint(seg.exitEdge, positions);
   const center = faceCenter(mesh, seg.face, positions);
@@ -68,7 +68,9 @@ function computeOmegaWaypoints(
     new Vector3().copy(exit).addScaledVector(lNorm, -latLen * 0.6),
   ];
 
-  const localAmplitude = amplitude * hLen;
+  // Arch height is a fraction of the cell, floored by the yarn's own clearance
+  // (the arch is what carries the strand over its neighbour).
+  const localAmplitude = Math.max(amplitude * hLen, minLift(analysis, center));
   const displacements = [-sign, -sign * 0.7, +sign, -sign * 0.5, -sign * 1.5, -sign * 0.5, +sign, -sign * 0.7, -sign];
   const normals = [normal, normal, normal, normal, apexNormal, normal, normal, normal, normal];
 
@@ -95,15 +97,14 @@ export const omegaPattern: Pattern<OmegaOptions> = {
     const samplesPerSegment = options.samplesPerSegment ?? DEFAULT_SAMPLES_PER_SEGMENT;
     const archHeight = options.archHeight ?? DEFAULT_ARCH_HEIGHT;
     const alternating = options.alternating ?? false;
-    const { mesh, positions, faceColors } = analysis;
 
     const points: Vector3[] = [];
 
     for (let i = 0; i < strand.segments.length; i++) {
       const seg = strand.segments[i];
-      const sign = alternating ? (faceColors[seg.face.index] === 0 ? 1 : -1) : 1;
+      const sign = alternating ? seg.side : 1;
 
-      const wp = computeOmegaWaypoints(mesh, seg, positions, archHeight, amplitude, sign);
+      const wp = computeOmegaWaypoints(analysis, seg, archHeight, amplitude, sign);
       const loopPoints = sampleCatmullRom(wp, samplesPerSegment, i === 0);
       points.push(...loopPoints);
     }

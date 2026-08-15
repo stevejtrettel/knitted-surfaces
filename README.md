@@ -6,10 +6,16 @@ Generate woven, knitted, chain-mail, and triaxial strand patterns on **quad and 
 
 ```
 npm install
-npm run dev
+npm run dev      # gallery at http://localhost:5173
+npm test         # pipeline invariants + every source × pattern
 ```
 
-Open `http://localhost:5173` for the demo index, or go directly to any demo. They
+Open `http://localhost:5173` for the demo gallery — its cards are **generated
+from the demos themselves** (see `vite.config.ts`): any directory under `demos/`
+with a `main.ts` gets a card, titled and described by its own `index.html`
+(`<title>`, `<meta name="description">`, optional `<meta name="demo-featured">`).
+A demo's "Save Thumbnail" button (dev only) writes `public/thumbs/<demo>.jpg`,
+which the card then shows. Go directly to any demo if you prefer. They
 all share one studio scaffold (`src/scene/weaveStudio.ts`) — scene, materials, the
 Look/Render controls, and the rebuild pipeline — differing only in which geometry
 they show:
@@ -22,22 +28,74 @@ they show:
 
 A geometry can carry its own **metric** as `radiusField` (hyperbolic `metricTaper`,
 S³ `stereographicTaper`) and a **`meta.diskRadius`** for the disk border — the studio
-applies both automatically.
+applies both automatically. Every control's value lives in the URL hash
+(`scene/permalink.ts`), so a look you find by fiddling is a link you can keep.
 
 ## The pipeline
 
 ```
-Source → Geometry → Tile + Stitch → Pattern → Output → Scene
-registry  cells +    ports → global   curves,  variable  app, render,
-          cellType   strands          per type  tubes     ui
+Source → Geometry → Tile + Stitch → Sides → Pattern → Selvedge → Width → Output → Scene
+registry  cells +    ports → global  over/   curves,   boundary   per-    tubes    app,
+          cellType   strands         under   per type  turns      point   +border  ui
 ```
 
 Each stage has a clear seam:
 
 - **Geometry** builds an explicit quad *or* triangle mesh from any source.
 - **Connectivity** is one model for every fabric: a pattern's **tile** declares *ports* on each cell edge + *arcs* pairing them, and the **stitcher** joins ports across shared edges purely by topology (twin half-edge + matching position) into continuous global strands. A thread weave is just the one-port-per-edge tile; chain mail is a closed-per-face tile; corner weaves are two-ports-per-edge.
+- **Sides** (`weave/routing/sides.ts`) decides who is over at each crossing, by walking the alternation *along each strand* — breadth-first through the fabric so every strand arrives already constrained by a neighbour. The crossing rule (a pair must be opposite) is hard; alternation gives way to it, so the defects a bad 2-colouring used to spread in bands become isolated stitches. `Analysis.sideDefects` counts them.
 - **Pattern** is the rendering half — the 3D curve a strand draws — and is free to read the whole mesh (e.g. Omega arches into the neighbouring cell).
+- **Selvedge** (`weave/selvedge.ts`) joins strand ends that sit on the mesh boundary into hairpin turns, so an open surface ends in turns rather than cut stubs — see below.
+- **Width** (`weave/width.ts` → `weave/radius.ts`) bakes the yarn thickness into per-point radii.
 - **Output / Scene** are arity-agnostic.
+
+### Width: constant, conformal, and clearance
+
+`WidthField` answers "how thick is the yarn here?", and is the single source of
+truth for it — the tube sweep uses it for the swept radius, and the patterns use
+it to size their over/under lift. Three things multiply into it: the base radius,
+the geometry's own metric taper, and a **conformal** blend of the local cell
+scale (per-vertex mean edge length, Laplacian-smoothed, normalized to geometric
+mean 1). The blend is continuous — `scale^conformal` — so 0 is constant width, 1
+is fully proportional to the neighbouring cells, and the partial settings in
+between are usually the nicest.
+
+Because patterns read the same field, **Clearance** works: a crossing's lift is
+floored at `width × (1 + clearance)`, so the two tubes are always at least that
+far apart (`weave/clearance.ts`). Widening the yarn deepens the crossings instead
+of pushing them through each other, and where the conformal blend draws the yarn
+finer, the crossings shallow to match.
+
+Uneven cells are also attacked at the source: `evenProfile` (in `maps.ts`)
+reparameterizes a revolution profile by arc length, so rows of cells are evenly
+spaced down the piece instead of bunching wherever the profile happened to move
+fastest.
+
+### Selvedge and border
+
+Two different halves of "finish the edge":
+
+- **Selvedge** is topological. Boundary strand ends are paired (nearest-first,
+  same family, with a union-find guard that stops two-row loops from forming) and
+  joined by a hairpin that bulges past the mesh edge. Cloth works this way — the
+  weft turns at the edge and comes back on the next row — so a sheet that was
+  hundreds of stubs becomes a few long boustrophedon threads.
+- **Border** is the rail (`output/border.ts`). It is produced as ordinary
+  strands, so it flows through the same tube builder as the fabric, gets the same
+  rounded ends, and lands in OBJ exports. Any open mesh gets one from its
+  boundary loops (offset inward along the surface); geometries that know better
+  can declare `meta.diskRadius`, `meta.boundaryCurves`, or `meta.boundaryRings`.
+
+### Yarn
+
+`output/tubes.ts` sweeps rings along the polyline with a rotation-minimizing
+frame. Open strands are **capped** with hemispherical rings (an uncapped end
+reads as a black disc under the path tracer and is not a closed solid for
+export), and **plies** turn one yarn into 2–4 finer ones spiralling around the
+centreline — the offsets are just the transported frame, the twist is measured
+per unit arc length, and on a closed strand it snaps to whole turns so the helix
+meets itself. Geometries are merged per material, so a fabric is a few draw calls
+rather than thousands.
 
 ## Project structure
 
@@ -50,22 +108,32 @@ src/
 │   ├── parseOBJ.ts         OBJ parser
 │   ├── parametric.ts       makeParametricMesh(f, domain) — the one quad builder
 │   ├── triangleGrid.ts     makeTriangleGrid(f, domain) — triangle builder
-│   ├── maps.ts             Profiles + parametric-surface maps + grid map
+│   ├── maps.ts             Profiles (+ evenProfile arc-length reparam) + surface maps + grid map
 │   ├── s3.ts               Clifford / Hopf tori in S³ (stereographic projection)
 │   ├── radiusFields.ts     metricTaper (hyperbolic) / stereographicTaper — per-geometry tube metric
+│   ├── boundary.ts         Boundary loops (positions + indices) and circle fitting
 │   ├── tilings/            Hyperbolic (p,q,r) triangle-group tiling
 │   └── sources/            GeometrySource registry (grouped) + buildSourceControls
 ├── weave/
 │   ├── types.ts            Port, Strand, StrandSegment, Analysis, Pattern, StrandSample, WeaveResult
 │   ├── tile/               Tile/Port/Arc types, the stitcher, and the tile factories
-│   ├── routing/            classifyEdges(+Tri), colorFaces, analyze (geometry → Analysis)
+│   ├── routing/            classifyEdges(+Tri), colorFaces, sides (over/under), analyze
 │   ├── patterns/           weave, loop, omega (quad) · triaxialWeave, chainMail, cornerWeaves (tri) · registry
 │   ├── generateStrands.ts  apply a pattern's render to every stitched strand
+│   ├── width.ts            WidthField: base × cell-scale^conformal × metric
+│   ├── clearance.ts        Crossing lift floored by the yarn's own thickness
+│   ├── selvedge.ts         Boundary strand ends → hairpin turnarounds
+│   ├── resample.ts         Arc-length resampling / cumulative lengths
 │   └── splines.ts          Hermite / Catmull-Rom helpers
-├── output/        WeaveResult → tubes (variable radius) / lines / OBJ
-├── scene/         App, weaveStudio (shared demo scaffold), ControlPanel, presets, path-trace + screenshot, paramPicker
+├── output/        WeaveResult → tubes (variable radius, capped, plied) / lines / border / OBJ
+├── scene/         App, weaveStudio (shared demo scaffold), ControlPanel, presets, path-trace + screenshot + thumbnail, paramPicker, permalink
 ├── params.ts      Shared ParamSpec (neutral, used by sources and patterns)
 └── io.ts          Browser IO (file picker, downloads)
+
+test/              node --test, straight off the TS sources (no DOM)
+├── weave.test.ts    Pipeline invariants: arcs consumed once, ports twin up,
+│                    over/under alternates, clearance floors the lift, …
+└── sources.test.ts  Every geometry source × every pattern of its cell type
 ```
 
 ### Geometry layer
@@ -121,7 +189,7 @@ Return bare `Vector3[]` for constant-radius tubes, or `StrandSample[]` (`{ posit
 
 ### Output layer
 
-`makeStrandTubes` sweeps a **variable-radius** tube along each strand using a parallel-transport (rotation-minimizing) frame with a closing-twist correction — honoring per-point radius from `WeaveResult.strandRadii`, falling back to `tubeRadius`. (Adapted from `threejs-demos`' `buildTubeGeometry`.) `makeStrandLines` is the fast curve preview; `obj.ts` exports tube meshes or polylines.
+`makeStrandTubes` sweeps a **variable-radius** tube along each strand using a parallel-transport (rotation-minimizing) frame with a closing-twist correction — honoring per-point radius from `WeaveResult.strandRadii`, falling back to `tubeRadius` — with rounded caps on open ends and optional plies. (Adapted from `threejs-demos`' `buildTubeGeometry`.) `makeStrandLines` is the fast curve preview; `border.ts` builds the edge rail as strands; `obj.ts` exports tube meshes or polylines (fabric **and** border).
 
 ### Scene layer
 
@@ -135,4 +203,14 @@ Return bare `Vector3[]` for constant-radius tubes, or `StrandSample[]` (`{ posit
 
 ## Roadmap (deferred)
 
-A correct odd-valence over/under rule (3-phase / cyclic) for non-bipartite triangle tilings · crossing-sign (writhe) link verification · radial tube/height taper toward the disk boundary · triangle-OBJ import · breaking `scene/` into engine / render / ui · conformal (Ricci-flow) reparameterization for even stitches on curved surfaces.
+**Next, and the big one: yarn-level relaxation.** Everything above draws where a
+strand ideally goes; relaxation would let it settle — length constraints along
+each thread, contact repulsion between nearby samples, attraction to the surface
+— which is the difference between curves drawn on a surface and fabric. It also
+subsumes the clearance floor, since contacts would resolve themselves.
+
+Also deferred: a correct odd-valence over/under rule (3-phase / cyclic) for
+non-bipartite triangle tilings · crossing-sign (writhe) link verification ·
+triangle-OBJ import · breaking `scene/` into engine / render / ui · full
+conformal (Ricci-flow) reparameterization for even stitches on curved surfaces
+(`evenProfile` only handles surfaces of revolution).

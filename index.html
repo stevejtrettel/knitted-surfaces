@@ -10,12 +10,20 @@
       font-family: system-ui, sans-serif; min-height: 100vh;
       display: flex; flex-direction: column; align-items: center; padding: 64px 24px; box-sizing: border-box; }
     h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 6px; }
-    .sub { color: #888; margin: 0 0 40px; max-width: 560px; text-align: center; line-height: 1.5; }
+    .sub { color: #888; margin: 0 0 10px; max-width: 560px; text-align: center; line-height: 1.5; }
+    .count { color: #666; font-size: 0.8rem; margin: 0 0 34px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
       gap: 14px; width: 100%; max-width: 780px; }
     a.card { display: block; padding: 18px 20px; background: #1a1a1d; border: 1px solid #2c2c30;
       border-radius: 12px; text-decoration: none; color: inherit; transition: background 0.15s, border-color 0.15s, transform 0.1s; }
     a.card:hover { background: #222226; border-color: #3a3a40; transform: translateY(-2px); }
+    a.card { padding: 0; overflow: hidden; }
+    .card > :not(.shot) { padding-left: 20px; padding-right: 20px; }
+    .card > h2 { padding-top: 18px; }
+    .card > p:last-child { padding-bottom: 18px; }
+    .card .shot { display: block; width: 100%; aspect-ratio: 8 / 5; object-fit: cover;
+      background: #0b0b0d; border-bottom: 1px solid #2c2c30; margin-bottom: 14px; }
+    .card .shot + h2 { padding-top: 0; }
     .card h2 { font-size: 1rem; font-weight: 600; margin: 0 0 6px; }
     .card.flagship h2::after { content: '★'; color: #6aa0ff; margin-left: 7px; font-size: 0.85em; }
     .card p { margin: 0; font-size: 0.85rem; color: #999; line-height: 1.45; }
@@ -24,39 +32,11 @@
 <body>
   <h1>Knitted Surfaces</h1>
   <p class="sub">Woven, knitted, and chain-mail strand patterns traced over quad and triangle meshes, rendered with three.js and GPU path tracing.</p>
+  <p class="count"><!--demo-count--></p>
+  <!-- Cards are generated from demos/*/index.html by the demo-gallery plugin in
+       vite.config.ts — add a demo directory, not a card. -->
   <div class="cards">
-    <a class="card flagship" href="/demos/tile/">
-      <h2>Tile Inspector</h2>
-      <p>One tile up close — triangle or quad — its weave and the ports each pattern declares. Toggle the tiling to see how it repeats.</p>
-    </a>
-    <a class="card flagship" href="/demos/hyperbolic/">
-      <h2>Hyperbolic Plane</h2>
-      <p>Triangle tilings of the Poincaré disk woven into interlaced knots — metric-tapered tubes, framed by a border.</p>
-    </a>
-    <a class="card" href="/demos/3-sphere/">
-      <h2>3-Sphere</h2>
-      <p>Clifford and Hopf tori in S³, stereographically projected — tube width follows the metric, fattening outward.</p>
-    </a>
-    <a class="card" href="/demos/surfaces/">
-      <h2>Surfaces</h2>
-      <p>Everyday surfaces — surfaces of revolution, the monkey saddle, and the Dini/Kuen pseudospheres — in quad or triangle fabric.</p>
-    </a>
-    <a class="card" href="/demos/minimal/">
-      <h2>Minimal Surfaces</h2>
-      <p>The minimal gallery — helicoid, catenoid, Scherk, the Enneper family, Catalan, Henneberg, Richmond, Bour, Costa, and the trinoid.</p>
-    </a>
-    <a class="card" href="/demos/topology/">
-      <h2>Topology</h2>
-      <p>Surfaces by topology — the torus, the Klein bottle, Boy's surface, the Roman surface, and the cross-cap.</p>
-    </a>
-    <a class="card" href="/demos/quad-obj/">
-      <h2>Quad OBJ</h2>
-      <p>Load and knit your own quad mesh. Studio lighting, path tracing, material controls, OBJ export.</p>
-    </a>
-    <a class="card" href="/demos/tri-obj/">
-      <h2>Triangle OBJ</h2>
-      <p>Load and knit your own triangle mesh — tri-axial, chain mail, and corner-weave patterns.</p>
-    </a>
+<!--demo-cards-->
   </div>
 </body>
 </html>

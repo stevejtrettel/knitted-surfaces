@@ -14,6 +14,15 @@ const key = (a: number, b: number) => (a < b ? `${a},${b}` : `${b},${a}`);
 
 /** Ordered position loops, one per boundary component (open meshes only). */
 export function boundaryLoops(mesh: ParsedMesh): Vector3[][] {
+  return boundaryIndexLoops(mesh).map((loop) => loop.map((i) => mesh.vertices[i]));
+}
+
+/**
+ * The same loops as vertex INDICES. Anything that needs more than the positions
+ * — the border ring, which offsets each vertex inward along the surface — has to
+ * get back to the mesh from here.
+ */
+export function boundaryIndexLoops(mesh: ParsedMesh): number[][] {
   // Count incidences per undirected edge; count===1 ⇒ boundary edge.
   const count = new Map<string, number>();
   for (const f of mesh.faces) {
@@ -34,7 +43,7 @@ export function boundaryLoops(mesh: ParsedMesh): Vector3[][] {
 
   // Walk loops, consuming each boundary edge once.
   const used = new Set<string>();
-  const loops: Vector3[][] = [];
+  const loops: number[][] = [];
   for (const start of adj.keys()) {
     for (const first of adj.get(start)!) {
       if (used.has(key(start, first))) continue;
@@ -48,7 +57,7 @@ export function boundaryLoops(mesh: ParsedMesh): Vector3[][] {
         used.add(key(cur, next));
         prev = cur; cur = next;
       }
-      if (loop.length >= 3) loops.push(loop.map((i) => mesh.vertices[i]));
+      if (loop.length >= 3) loops.push(loop);
     }
   }
   return loops;

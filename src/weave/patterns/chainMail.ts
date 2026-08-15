@@ -3,6 +3,7 @@ import type { Pattern, Analysis, Strand } from '../types.ts';
 import { faceCenter, faceNormal, faceEdgeArray } from '../../geometry/geometry.ts';
 import { catmullRom } from '../splines.ts';
 import { ringTile } from '../tile/tiles.ts';
+import { minLift } from '../clearance.ts';
 
 /**
  * Chain mail — one closed ring per triangle, the rings genuinely interlock.
@@ -63,7 +64,9 @@ export const chainMailPattern: Pattern<ChainMailOptions> = {
     let meanLen = 0;
     for (const e of edges) meanLen += positions[e.origin.index].distanceTo(positions[e.next.origin.index]);
     meanLen /= 3;
-    const amp = (options.amplitude ?? DEFAULT_AMPLITUDE) * meanLen;
+    // The ±amp step is what makes two tongues cross over and under at a shared
+    // point, so it needs the same clearance floor as any other crossing.
+    const amp = Math.max((options.amplitude ?? DEFAULT_AMPLITUDE) * meanLen, minLift(analysis, center));
     const tongueDepth = (options.tongue ?? DEFAULT_TONGUE) * meanLen;
     const cross = options.crossing ?? DEFAULT_CROSSING; // entry at `cross`, exit at 1−cross
 
